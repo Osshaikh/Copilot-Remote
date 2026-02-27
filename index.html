@@ -2,762 +2,595 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Agent Chat</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #0d0d0f;
-    --surface:   #141417;
-    --border:    #222228;
-    --accent:    #c8f135;
-    --accent-dim:#8aaa22;
-    --text:      #e8e8ec;
-    --muted:     #55555f;
-    --user-bg:   #1a1a20;
-    --agent-bg:  #101013;
-    --sidebar-w: 260px;
-    --header-h:  52px;
-    --font-ui:   'Syne', sans-serif;
-    --font-mono: 'IBM Plex Mono', monospace;
+    --bg:            #0c0e14;
+    --sidebar-bg:    #10121a;
+    --sidebar-border:#1e2130;
+    --surface:       #161926;
+    --surface-2:     #1c2035;
+    --border:        #1e2336;
+    --border-2:      #252a40;
+
+    --blue:          #4b7cf3;
+    --blue-dim:      #2a4db5;
+    --blue-glow:     rgba(75,124,243,.13);
+
+    --tool-name:     #6b9cf8;
+    --tool-args:     #3d4b6a;
+    --tool-dot:      #3a4f7a;
+
+    --green:         #48bb78;
+    --red:           #fc8181;
+
+    --text:          #d8dce8;
+    --text-2:        #7b8299;
+    --text-3:        #363c52;
+
+    --sidebar-w:     268px;
+    --header-h:      50px;
+    --font:          'JetBrains Mono', monospace;
+
+    --safe-top:      env(safe-area-inset-top,    0px);
+    --safe-bottom:   env(safe-area-inset-bottom, 0px);
+    --safe-left:     env(safe-area-inset-left,   0px);
   }
 
-  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
+  html, body { height: 100%; height: 100dvh; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
 
-  /* ── Layout ─────────────────────────────── */
-  #app { display: flex; height: 100vh; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
 
-  /* ── Sidebar ────────────────────────────── */
+  /* ══ Layout ═══════════════════════════════════ */
+  #app { display: flex; height: 100dvh; position: relative; overflow: hidden; }
+
+  /* ══ Sidebar ══════════════════════════════════ */
   #sidebar {
     width: var(--sidebar-w);
     min-width: var(--sidebar-w);
-    background: var(--surface);
-    border-right: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+    z-index: 30;
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    padding-left: var(--safe-left);
   }
 
   #sidebar-header {
-    padding: 18px 16px 14px;
-    border-bottom: 1px solid var(--border);
+    padding: 16px 14px 14px;
+    padding-top: calc(16px + var(--safe-top));
+    border-bottom: 1px solid var(--sidebar-border);
+    flex-shrink: 0;
   }
 
-  .logo {
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
+  .logo { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
 
-  .logo span { color: var(--muted); font-weight: 400; }
+  .logo-circle {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(75,124,243,.4);
+  }
+  .logo-circle svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; }
+
+  .logo-wordmark { font-size: 13.5px; font-weight: 600; color: var(--text); letter-spacing: .01em; }
+  .logo-wordmark span { color: var(--text-2); font-weight: 400; }
 
   #new-session-btn {
-    margin-top: 12px;
-    width: 100%;
-    padding: 8px 12px;
-    background: var(--accent);
-    color: #0d0d0f;
-    border: none;
-    border-radius: 6px;
-    font-family: var(--font-ui);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    width: 100%; padding: 9px 14px; min-height: 44px;
+    background: var(--blue); color: #fff;
+    border: none; border-radius: 7px;
+    font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: .02em;
     cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
     transition: background .15s, transform .1s;
   }
-  #new-session-btn:hover { background: #d9ff3f; }
+  #new-session-btn:hover  { background: #3d6be8; }
   #new-session-btn:active { transform: scale(.97); }
 
   #fetch-local-btn {
-    margin-top: 6px;
-    width: 100%;
-    padding: 8px 12px;
-    background: transparent;
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-family: var(--font-ui);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    margin-top: 7px; width: 100%; padding: 8px 14px; min-height: 44px;
+    background: transparent; color: var(--text-2);
+    border: 1px solid var(--border-2); border-radius: 7px;
+    font-family: var(--font); font-size: 11.5px; font-weight: 500;
     cursor: pointer;
-    transition: background .15s, transform .1s, color .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: border-color .15s, color .15s, background .15s;
   }
-  #fetch-local-btn:hover { background: rgba(200,241,53,.1); }
-  #fetch-local-btn:active { transform: scale(.97); }
-  #fetch-local-btn:disabled { opacity: .4; cursor: not-allowed; }
+  #fetch-local-btn:hover   { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
+  #fetch-local-btn:active  { transform: scale(.97); }
+  #fetch-local-btn:disabled { opacity: .35; cursor: not-allowed; }
 
-  /* Sidebar section dividers */
-  .sidebar-section-label {
-    padding: 10px 16px 4px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
+  #sessions-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 0; }
 
-  /* Local session items */
-  .local-session-item {
-    display: flex;
-    flex-direction: column;
-    padding: 8px 16px;
-    cursor: pointer;
-    border-left: 2px solid transparent;
-    transition: background .12s, border-color .12s;
+  .section-label {
+    padding: 12px 14px 4px;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-3);
   }
-  .local-session-item:hover { background: rgba(255,255,255,.03); }
-  .local-session-item.active {
-    background: rgba(200,241,53,.06);
-    border-left-color: var(--accent);
-  }
-
-  .local-session-summary {
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--muted);
-    transition: color .12s;
-  }
-  .local-session-item.active .local-session-summary { color: var(--text); }
-
-  .local-session-meta {
-    font-size: 10px;
-    color: var(--muted);
-    opacity: .6;
-    font-family: var(--font-mono);
-    margin-top: 2px;
-  }
-
-  /* Resumed session banner */
-  .resumed-banner {
-    padding: 10px 24px;
-    background: rgba(200,241,53,.06);
-    border-bottom: 1px solid rgba(200,241,53,.15);
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--accent-dim);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .resumed-banner .banner-icon { font-size: 14px; }
-  .resumed-banner .banner-text { flex: 1; }
-
-  #sessions-list { flex: 1; overflow-y: auto; padding: 8px 0; }
-  #sessions-list::-webkit-scrollbar { width: 4px; }
-  #sessions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
   .session-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 16px;
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 14px; min-height: 44px;
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: background .12s, border-color .12s;
-    position: relative;
   }
-  .session-item:hover { background: rgba(255,255,255,.03); }
-  .session-item.active {
-    background: rgba(200,241,53,.06);
-    border-left-color: var(--accent);
-  }
+  .session-item:hover  { background: rgba(255,255,255,.025); }
+  .session-item.active { background: var(--blue-glow); border-left-color: var(--blue); }
 
   .session-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    flex-shrink: 0;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--border-2); flex-shrink: 0;
     transition: background .12s;
   }
-  .session-item.active .session-dot { background: var(--accent); }
+  .session-item.active .session-dot { background: var(--blue); box-shadow: 0 0 5px var(--blue); }
 
   .session-label {
-    flex: 1;
-    font-size: 12.5px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--muted);
-    transition: color .12s;
+    flex: 1; font-size: 12.5px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text-2); transition: color .12s;
   }
   .session-item.active .session-label { color: var(--text); }
 
   .session-delete {
-    opacity: 0;
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 3px;
-    transition: opacity .12s, color .12s;
+    background: none; border: none; color: var(--text-3);
+    cursor: pointer; font-size: 17px; line-height: 1;
+    padding: 3px 5px; border-radius: 4px; opacity: 0;
+    min-width: 28px; min-height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity .12s, color .12s, background .12s;
   }
   .session-item:hover .session-delete { opacity: 1; }
-  .session-delete:hover { color: #ff6b6b; }
+  .session-delete:hover { color: var(--red); background: rgba(252,129,129,.1); }
+
+  #local-sessions-container {
+    border-top: 1px solid var(--sidebar-border);
+    flex-shrink: 0; max-height: 45%;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+
+  .local-item {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 9px 14px; min-height: 50px; cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background .12s, border-color .12s;
+  }
+  .local-item:hover  { background: rgba(255,255,255,.025); }
+  .local-item.active { background: var(--blue-glow); border-left-color: var(--blue); }
+
+  .local-summary {
+    font-size: 12px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text-2);
+  }
+  .local-item.active .local-summary { color: var(--text); }
+  .local-meta { font-size: 9.5px; color: var(--text-3); margin-top: 2px; }
 
   #sidebar-footer {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--font-mono);
+    padding: 12px 14px;
+    padding-bottom: calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--sidebar-border);
+    background: var(--sidebar-bg); flex-shrink: 0;
   }
 
-  .endpoint-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
+  .ep-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .ep-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-3); flex-shrink: 0;
+    transition: background .3s, box-shadow .3s;
   }
-  .endpoint-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    flex-shrink: 0;
-    transition: background .3s;
-  }
-  .endpoint-dot.live { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .ep-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .ep-lbl { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 
   #endpoint-url {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    width: 100%;
-    outline: none;
-    cursor: text;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text-2); font-family: var(--font);
+    font-size: 16px; /* ≥16px to prevent iOS zoom */
+    width: 100%; outline: none; padding: 5px 7px; margin-top: 3px;
+    transform: scale(.75); transform-origin: left top;
+    width: 133.33%; margin-bottom: -9px;
+    transition: border-color .15s;
   }
-  #endpoint-url:focus { color: var(--text); }
+  #endpoint-url:focus { border-color: var(--blue); color: var(--text); }
 
-  /* ── Main Chat Area ─────────────────────── */
-  #main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--bg);
-  }
+  /* ══ Main ═════════════════════════════════════ */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-width: 0; }
 
+  /* ══ Header ═══════════════════════════════════ */
   #chat-header {
-    height: var(--header-h);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 22px; padding-top: var(--safe-top);
+    height: calc(var(--header-h) + var(--safe-top));
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    flex-shrink: 0; background: var(--bg);
+    position: relative; z-index: 10;
   }
+
+  #menu-btn {
+    display: none; background: none; border: none; color: var(--text-2);
+    cursor: pointer; padding: 6px; border-radius: 5px;
+    min-width: 40px; min-height: 40px;
+    align-items: center; justify-content: center;
+    transition: background .12s, color .12s; flex-shrink: 0;
+  }
+  #menu-btn:hover { background: rgba(255,255,255,.05); color: var(--text); }
 
   #session-title {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: .06em;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 500px;
+    flex: 1; font-size: 13px; font-weight: 600;
+    color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
 
-  #msg-count {
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
+  #msg-count { font-size: 11px; color: var(--text-3); flex-shrink: 0; white-space: nowrap; }
 
-  /* ── Messages ───────────────────────────── */
+  .header-config { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 1px; }
+  .hcfg-pill {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+  }
+  .hcfg-pill.agent { background: rgba(75,124,243,.12); color: #6b9cf8; border: 1px solid rgba(75,124,243,.2); }
+  .hcfg-pill.skill { background: rgba(72,187,120,.1);  color: var(--green); border: 1px solid rgba(72,187,120,.2); }
+
+  /* ══ Messages ═════════════════════════════════ */
   #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 28px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 18px 0 6px;
+    display: flex; flex-direction: column;
     scroll-behavior: smooth;
   }
-  #messages::-webkit-scrollbar { width: 4px; }
-  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
   .msg {
-    padding: 14px 24px;
-    display: flex;
-    gap: 14px;
-    animation: fadeUp .2s ease both;
+    display: flex; gap: 14px;
+    padding: 14px 22px;
+    animation: fadeUp .18s ease both;
   }
-
   @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  .msg.user { background: var(--user-bg); }
-  .msg.agent { background: var(--agent-bg); }
+  .msg.user  { background: rgba(75,124,243,.04); }
+  .msg.agent { background: transparent; }
 
   .msg-avatar {
-    width: 26px; height: 26px;
-    border-radius: 6px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: .05em;
-    margin-top: 1px;
+    width: 32px; height: 20px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; letter-spacing: .06em;
+    flex-shrink: 0; margin-top: 2px; text-transform: uppercase;
   }
-  .msg.user .msg-avatar  { background: rgba(200,241,53,.15); color: var(--accent); }
-  .msg.agent .msg-avatar { background: rgba(255,255,255,.06); color: var(--muted); }
+  .msg.user  .msg-avatar { background: var(--blue); color: #fff; }
+  .msg.agent .msg-avatar {
+    background: var(--surface); border: 1px solid var(--border-2);
+    color: var(--text-2); width: 26px;
+  }
 
   .msg-body { flex: 1; min-width: 0; }
 
   .msg-role {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    margin-bottom: 6px;
+    font-size: 9.5px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
+    margin-bottom: 6px; color: var(--text-3);
   }
-  .msg.user .msg-role  { color: var(--accent-dim); }
-  .msg.agent .msg-role { color: var(--muted); }
+  .msg.user .msg-role { color: #4a6bb5; }
 
   .msg-text {
-    font-size: 14px;
-    line-height: 1.7;
-    color: var(--text);
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--font-mono);
+    font-size: 13.5px; line-height: 1.72;
+    color: var(--text); white-space: pre-wrap;
+    word-break: break-word; font-weight: 400;
   }
 
-  /* Empty state */
-  #empty-state {
-    flex: 1;
+  /* ══ Tool Events ══════════════════════════════
+     Exact format from screenshot:
+       ◉  toolname  {"path":"...","key":"val",...}
+     tool-name = bold blue, args = dark grey
+     indented so text aligns with message body
+  ══════════════════════════════════════════════ */
+  .tool-event {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    gap: 10px;
-    text-align: center;
-    padding: 40px;
+    align-items: baseline;
+    gap: 7px;
+    padding: 3px 22px 3px 72px;
+    font-family: var(--font);
+    font-size: 11.5px;
+    line-height: 1.5;
+    animation: fadeUp .12s ease both;
   }
-  .empty-icon { font-size: 36px; opacity: .3; }
-  .empty-title { font-size: 14px; font-weight: 700; letter-spacing: .06em; }
-  .empty-sub { font-size: 12px; font-family: var(--font-mono); }
 
-  /* Thinking indicator */
-  .thinking {
-    padding: 14px 24px;
-    display: flex;
-    gap: 14px;
-    align-items: center;
-  }
-  .thinking-dots {
-    display: flex; gap: 4px; padding: 2px 0;
-  }
+  .tool-bullet { color: var(--tool-dot); font-size: 10px; flex-shrink: 0; line-height: 1.6; }
+  .tool-name   { color: var(--tool-name); font-weight: 600; flex-shrink: 0; }
+  .tool-args   { color: var(--tool-args); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+
+  .tool-event.complete .tool-bullet { color: var(--green); }
+  .tool-event.complete .tool-name   { color: var(--green); }
+  .tool-event.complete .tool-args   { color: var(--text-3); }
+
+  .tool-event.error .tool-bullet { color: var(--red); }
+  .tool-event.error .tool-name   { color: var(--red); }
+  .tool-event.error .tool-args   { color: var(--red); opacity: .7; }
+
+  /* ══ Thinking ═════════════════════════════════ */
+  .thinking { display: flex; gap: 14px; padding: 14px 22px; align-items: center; }
+  .thinking-dots { display: flex; gap: 4px; }
   .thinking-dots span {
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--muted);
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-3);
     animation: blink 1.2s infinite;
   }
   .thinking-dots span:nth-child(2) { animation-delay: .2s; }
   .thinking-dots span:nth-child(3) { animation-delay: .4s; }
-  @keyframes blink {
-    0%, 80%, 100% { opacity: .2; }
-    40%           { opacity: 1; }
+  @keyframes blink { 0%,80%,100%{opacity:.2;} 40%{opacity:1;} }
+
+  .msg.streaming .msg-text::after {
+    content: '▋'; color: var(--blue);
+    animation: bcur .7s infinite; margin-left: 1px;
+  }
+  @keyframes bcur { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+
+  /* empty / no-session */
+  #empty-state, #no-session {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px; text-align: center; padding: 40px 24px; color: var(--text-3);
+  }
+  .empty-icon  { font-size: 28px; opacity: .18; }
+  .empty-title { font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .empty-sub   { font-size: 11px; color: var(--text-3); }
+
+  .resumed-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 22px;
+    background: rgba(75,124,243,.06);
+    border-bottom: 1px solid rgba(75,124,243,.12);
+    font-size: 11px; color: #6b9cf8;
   }
 
-  /* ── Input Area ─────────────────────────── */
+  /* ══ Input Area ═══════════════════════════════ */
   #input-area {
-    padding: 16px 24px 20px;
+    padding: 10px 18px 14px;
+    padding-bottom: calc(14px + var(--safe-bottom));
     border-top: 1px solid var(--border);
-    flex-shrink: 0;
+    flex-shrink: 0; background: var(--bg);
+    position: relative; z-index: 10;
   }
+
+  #config-bar { display: none; align-items: center; gap: 6px; padding: 0 0 9px; flex-wrap: wrap; }
+
+  .cfg-sel { position: relative; }
+
+  .cfg-trigger {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 11px; min-height: 34px;
+    background: var(--surface); border: 1px solid var(--border-2); border-radius: 6px;
+    color: var(--text-2); font-family: var(--font); font-size: 11.5px;
+    cursor: pointer; white-space: nowrap;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .cfg-trigger:hover  { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
+  .cfg-trigger.active { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
+  .cfg-trigger.locked { opacity: .4; cursor: default; }
+
+  .cfg-count {
+    background: var(--blue); color: #fff;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 8px;
+    min-width: 16px; text-align: center;
+  }
+
+  .cfg-dd {
+    display: none; position: absolute;
+    bottom: calc(100% + 6px); left: 0;
+    min-width: 275px; max-width: calc(100vw - 32px); max-height: 250px;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.55); z-index: 60; padding: 4px;
+  }
+  .cfg-dd.open { display: block; }
+
+  .cfg-dd-hdr {
+    padding: 7px 10px 5px;
+    font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text-3); border-bottom: 1px solid var(--border); margin-bottom: 3px;
+  }
+
+  .cfg-opt {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 9px 10px; border-radius: 6px; cursor: pointer; min-height: 44px;
+    transition: background .1s;
+  }
+  .cfg-opt:hover  { background: rgba(255,255,255,.04); }
+  .cfg-opt.sel    { background: var(--blue-glow); }
+  .cfg-opt.locked { opacity: .4; cursor: default; }
+
+  .cfg-chk {
+    width: 15px; height: 15px; border: 1.5px solid var(--border-2); border-radius: 3px;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    margin-top: 2px; font-size: 10px; color: transparent; transition: all .12s;
+  }
+  .cfg-opt.sel .cfg-chk { border-color: var(--blue); background: var(--blue); color: #fff; }
+
+  .cfg-info { flex: 1; min-width: 0; }
+  .cfg-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .cfg-desc {
+    font-size: 10.5px; color: var(--text-3); margin-top: 2px; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .cfg-empty { padding: 14px; font-size: 11px; color: var(--text-3); text-align: center; }
+
+  .cfg-pills { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+  .cfg-pill {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; white-space: nowrap;
+  }
+  .cfg-pill.agent { background: rgba(75,124,243,.12); border: 1px solid rgba(75,124,243,.25); color: #6b9cf8; }
+  .cfg-pill.skill { background: rgba(72,187,120,.1);  border: 1px solid rgba(72,187,120,.2);  color: var(--green); }
+  .cfg-pill .px { opacity: .5; cursor: pointer; font-size: 13px; transition: opacity .12s; }
+  .cfg-pill .px:hover { opacity: 1; }
+  .cfg-pill.locked .px { display: none; }
 
   #input-wrap {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 12px;
-    transition: border-color .15s;
+    display: flex; align-items: flex-end; gap: 9px;
+    background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px;
+    padding: 9px 11px;
+    transition: border-color .15s, box-shadow .15s;
   }
-  #input-wrap:focus-within { border-color: var(--accent); }
+  #input-wrap:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(75,124,243,.1); }
 
   #user-input {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 13.5px;
-    line-height: 1.6;
-    resize: none;
-    max-height: 160px;
-    overflow-y: auto;
-    scrollbar-width: none;
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--font);
+    font-size: 16px; font-weight: 400; line-height: 1.55;
+    resize: none; max-height: 120px;
+    overflow-y: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
-  #user-input::placeholder { color: var(--muted); }
+  #user-input::placeholder { color: var(--text-3); }
 
   #send-btn {
-    width: 34px; height: 34px;
-    background: var(--accent);
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 34px; height: 34px; min-width: 44px; min-height: 44px;
+    background: var(--blue); border: none; border-radius: 7px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
     transition: background .15s, transform .1s, opacity .15s;
+    box-shadow: 0 2px 10px rgba(75,124,243,.3);
   }
-  #send-btn:hover { background: #d9ff3f; }
-  #send-btn:active { transform: scale(.92); }
-  #send-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+  #send-btn:hover   { background: #3d6be8; }
+  #send-btn:active  { transform: scale(.92); }
+  #send-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+  #send-btn svg { width: 14px; height: 14px; fill: #fff; }
 
-  #send-btn svg { width: 15px; height: 15px; fill: #0d0d0f; }
+  .input-hint { font-size: 10px; color: var(--text-3); margin-top: 7px; text-align: right; }
 
-  .hint { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: right; font-family: var(--font-mono); }
-
-  /* Error toast */
   #error-toast {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: #2a0f0f;
-    border: 1px solid #5a1e1e;
-    color: #ff9090;
-    font-size: 12px;
-    font-family: var(--font-mono);
-    padding: 10px 18px;
-    border-radius: 8px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s, transform .2s;
-    z-index: 100;
-    white-space: nowrap;
+    position: fixed; bottom: calc(85px + var(--safe-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: #1a0a0a; border: 1px solid rgba(252,129,129,.3);
+    color: var(--red); font-size: 11.5px; padding: 9px 16px; border-radius: 8px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    z-index: 200; max-width: calc(100vw - 32px);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
   }
   #error-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* No session selected */
-  #no-session {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    gap: 12px;
+  #sidebar-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.72); z-index: 25; opacity: 0;
+    transition: opacity .25s;
   }
-  .no-session-icon { font-size: 42px; opacity: .2; }
-  .no-session-text { font-size: 13px; font-family: var(--font-mono); }
+  #sidebar-overlay.on { opacity: 1; }
 
-  /* Tool execution events */
-  .tool-event {
-    padding: 8px 24px 8px 64px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    animation: fadeUp .15s ease both;
-  }
-  .tool-event.start {
-    color: #7eb8da;
-    background: rgba(126, 184, 218, 0.05);
-  }
-  .tool-event.complete {
-    color: #7ed87e;
-    background: rgba(126, 216, 126, 0.05);
-  }
-  .tool-event.error {
-    color: #ff9090;
-    background: rgba(255, 144, 144, 0.05);
-  }
-  .tool-icon {
-    font-size: 12px;
-  }
-  .tool-name {
-    font-weight: 600;
-  }
-  .tool-args {
-    color: var(--muted);
-    max-width: 400px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  /* ══ Mobile ≤768px ════════════════════════════ */
+  @media (max-width: 768px) {
+    #menu-btn { display: flex; }
+
+    #sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 40px rgba(0,0,0,.6);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-overlay { display: block; }
+    #main { width: 100%; }
+
+    #chat-header { padding: 0 12px; padding-top: var(--safe-top); }
+    .msg        { padding: 12px 14px; }
+    .tool-event { padding: 3px 14px 3px 56px; }
+    .thinking   { padding: 12px 14px; }
+    #input-area { padding: 9px 12px; padding-bottom: calc(9px + var(--safe-bottom)); }
+
+    .session-delete { opacity: 1 !important; }
+    #msg-count   { display: none; }
+    .input-hint  { display: none; }
+    .tool-args   { max-width: 160px; }
   }
 
-  /* Streaming message */
-  .msg.streaming .msg-text {
-    border-right: 2px solid var(--accent);
-    animation: cursor-blink 1s infinite;
-  }
-  @keyframes cursor-blink {
-    0%, 50% { border-color: var(--accent); }
-    51%, 100% { border-color: transparent; }
+  @media (max-width: 380px) {
+    .msg-text   { font-size: 13px; }
+    .tool-event { font-size: 10.5px; }
   }
 
-  /* ── Config Bar (Agent & Skill Selection) ── */
-  #config-bar {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 0 2px;
-    flex-wrap: wrap;
-  }
-
-  .config-selector {
-    position: relative;
-  }
-
-  .config-trigger {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    background: rgba(255,255,255,.04);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all .15s;
-    white-space: nowrap;
-  }
-  .config-trigger:hover {
-    background: rgba(200,241,53,.06);
-    border-color: rgba(200,241,53,.2);
-    color: var(--text);
-  }
-  .config-trigger.active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(200,241,53,.08);
-  }
-  .config-trigger.locked {
-    opacity: .5;
-    cursor: default;
-  }
-  .config-trigger .trigger-icon {
-    font-weight: 700;
-    font-size: 13px;
-  }
-  .config-trigger .trigger-count {
-    background: var(--accent);
-    color: #0d0d0f;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 8px;
-    min-width: 16px;
-    text-align: center;
-  }
-
-  .config-dropdown {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 0;
-    min-width: 300px;
-    max-height: 300px;
-    overflow-y: auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.5);
-    z-index: 50;
-    padding: 4px;
-  }
-  .config-dropdown.show { display: block; }
-  .config-dropdown::-webkit-scrollbar { width: 4px; }
-  .config-dropdown::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  .config-dropdown-header {
-    padding: 8px 10px 6px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--muted);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 4px;
-  }
-
-  .config-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 7px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background .1s;
-  }
-  .config-option:hover {
-    background: rgba(255,255,255,.04);
-  }
-  .config-option.selected {
-    background: rgba(200,241,53,.06);
-  }
-  .config-option.locked {
-    opacity: .5;
-    cursor: default;
-  }
-
-  .config-option-check {
-    width: 16px;
-    height: 16px;
-    border: 1.5px solid var(--muted);
-    border-radius: 3px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1px;
-    transition: all .12s;
-    font-size: 10px;
-    color: transparent;
-  }
-  .config-option.selected .config-option-check {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: #0d0d0f;
-  }
-
-  .config-option-info { flex: 1; min-width: 0; }
-  .config-option-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .config-option-desc {
-    font-size: 10px;
-    color: var(--muted);
-    margin-top: 2px;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .config-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    flex: 1;
-  }
-
-  .config-pill {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    white-space: nowrap;
-  }
-  .config-pill.agent-pill {
-    background: rgba(126,184,218,.12);
-    border: 1px solid rgba(126,184,218,.25);
-    color: #7eb8da;
-  }
-  .config-pill.skill-pill {
-    background: rgba(200,241,53,.1);
-    border: 1px solid rgba(200,241,53,.2);
-    color: var(--accent);
-  }
-  .config-pill .pill-remove {
-    cursor: pointer;
-    opacity: .6;
-    font-size: 12px;
-    line-height: 1;
-    transition: opacity .12s;
-  }
-  .config-pill .pill-remove:hover { opacity: 1; }
-  .config-pill.locked .pill-remove { display: none; }
-
-  .session-config-display {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .session-config-tag {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    padding: 2px 6px;
-    border-radius: 4px;
-    white-space: nowrap;
-  }
-  .session-config-tag.agent-tag {
-    background: rgba(126,184,218,.1);
-    color: #7eb8da;
-  }
-  .session-config-tag.skill-tag {
-    background: rgba(200,241,53,.1);
-    color: var(--accent-dim);
-  }
-
-  .config-empty {
-    padding: 12px 10px;
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    text-align: center;
+  @media (min-width: 1200px) {
+    :root { --sidebar-w: 285px; }
+    #chat-header { padding: 0 28px; padding-top: var(--safe-top); }
+    .msg        { padding: 16px 28px; }
+    .tool-event { padding: 3px 28px 3px 82px; }
+    .thinking   { padding: 16px 28px; }
+    #input-area { padding: 12px 28px 16px; padding-bottom: calc(16px + var(--safe-bottom)); }
   }
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- ── Sidebar ── -->
+  <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <aside id="sidebar">
     <div id="sidebar-header">
-      <div class="logo">Agent<span>/chat</span></div>
-      <button id="new-session-btn" onclick="newSession()">+ New Session</button>
-      <button id="fetch-local-btn" onclick="fetchLocalSessions()">↓ Fetch Local Sessions</button>
+      <div class="logo">
+        <div class="logo-circle">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        </div>
+        <div class="logo-wordmark">Agent<span>/chat</span></div>
+      </div>
+      <button id="new-session-btn" onclick="newSession()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Session
+      </button>
+      <button id="fetch-local-btn" onclick="fetchLocalSessions()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="21" x2="12" y2="3"/></svg>
+        Fetch Local Sessions
+      </button>
     </div>
+
     <div id="sessions-list"></div>
-    <div id="local-sessions-container" style="display:none; border-top: 1px solid var(--border); flex-shrink: 0; max-height: 50%; overflow-y: auto;">
-      <div class="sidebar-section-label">Local Copilot Sessions</div>
+
+    <div id="local-sessions-container" style="display:none">
+      <div class="section-label">Local Copilot Sessions</div>
       <div id="local-sessions-list"></div>
     </div>
+
     <div id="sidebar-footer">
-      <div class="endpoint-badge">
-        <div class="endpoint-dot" id="endpoint-dot"></div>
-        <span>agent endpoint</span>
+      <div class="ep-row">
+        <div class="ep-dot" id="endpoint-dot"></div>
+        <span class="ep-lbl">agent endpoint</span>
       </div>
-      <input id="endpoint-url" type="text" value="https://lyle-unhectored-myron.ngrok-free.dev/chat" spellcheck="false" title="Edit agent endpoint URL" />
+      <input id="endpoint-url" type="url" inputmode="url"
+             value="https://lyle-unhectored-myron.ngrok-free.dev/chat"
+             spellcheck="false" autocomplete="off" />
     </div>
   </aside>
 
-  <!-- ── Main ── -->
   <main id="main">
     <div id="chat-header">
-      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
+      <button id="menu-btn" onclick="openSidebar()" aria-label="Open menu">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div style="flex:1;min-width:0;overflow:hidden">
         <div id="session-title">—</div>
-        <div id="session-config" class="session-config-display"></div>
+        <div id="session-config" class="header-config"></div>
       </div>
       <div id="msg-count"></div>
     </div>
@@ -766,809 +599,604 @@
 
     <div id="input-area">
       <div id="config-bar">
-        <div class="config-selector" id="agent-selector">
-          <div class="config-dropdown" id="agent-dropdown">
-            <div class="config-dropdown-header">Sub-Agents</div>
-            <div id="agent-options"></div>
+        <div class="cfg-sel" id="agent-sel">
+          <div class="cfg-dd" id="agent-dd">
+            <div class="cfg-dd-hdr">Sub-Agents</div>
+            <div id="agent-opts"></div>
           </div>
-          <button class="config-trigger" onclick="toggleDropdown('agent')">
-            <span class="trigger-icon">@</span>
-            <span>Agents</span>
-            <span class="trigger-count" id="agent-count" style="display:none">0</span>
+          <button class="cfg-trigger" onclick="toggleDD('agent')">
+            <span>@ Agents</span>
+            <span class="cfg-count" id="agent-count" style="display:none">0</span>
           </button>
         </div>
-        <div class="config-selector" id="skill-selector">
-          <div class="config-dropdown" id="skill-dropdown">
-            <div class="config-dropdown-header">Skills</div>
-            <div id="skill-options"></div>
+        <div class="cfg-sel" id="skill-sel">
+          <div class="cfg-dd" id="skill-dd">
+            <div class="cfg-dd-hdr">Skills</div>
+            <div id="skill-opts"></div>
           </div>
-          <button class="config-trigger" onclick="toggleDropdown('skill')">
-            <span class="trigger-icon">#</span>
-            <span>Skills</span>
-            <span class="trigger-count" id="skill-count" style="display:none">0</span>
+          <button class="cfg-trigger" onclick="toggleDD('skill')">
+            <span># Skills</span>
+            <span class="cfg-count" id="skill-count" style="display:none">0</span>
           </button>
         </div>
-        <div class="config-pills" id="config-pills"></div>
+        <div class="cfg-pills" id="cfg-pills"></div>
       </div>
+
       <div id="input-wrap">
         <textarea id="user-input" rows="1" placeholder="Message the agent…" disabled></textarea>
-        <button id="send-btn" disabled onclick="sendMessage()">
+        <button id="send-btn" onclick="sendMessage()" disabled aria-label="Send">
           <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
         </button>
       </div>
-      <div class="hint">Enter to send &nbsp;·&nbsp; Shift+Enter for newline</div>
+      <div class="input-hint">Enter to send · Shift+Enter for newline</div>
     </div>
   </main>
 </div>
 
-<div id="error-toast"></div>
+<div id="error-toast" role="alert"></div>
 
 <script>
-  // ── State ──────────────────────────────────────────────────────────────────
-  let sessions = JSON.parse(localStorage.getItem('agent_sessions') || '[]');
-  let activeId = null;
-  let localSessions = [];      // fetched from server
-  let activeLocalId = null;    // currently selected local session
-  let resumedSessionId = null; // if current session is resumed from a local one
-  let availableAgents = [];     // loaded from /agents endpoint
-  let availableSkills = [];     // loaded from /skills endpoint
-
-  // ── Persistence ────────────────────────────────────────────────────────────
-  function save() {
-    localStorage.setItem('agent_sessions', JSON.stringify(sessions));
-  }
-
-  function getSession(id) {
-    return sessions.find(s => s.id === id);
-  }
-
-  // ── Session Management ─────────────────────────────────────────────────────
-  function newSession() {
-    const id = 'sess_' + Date.now();
-    const label = 'Session ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    sessions.unshift({ id, label, messages: [], agents: [], skills: [], configLocked: false });
-    save();
-    renderSidebar();
-    selectSession(id);
-  }
-
-  function deleteSession(id, e) {
-    e.stopPropagation();
-    sessions = sessions.filter(s => s.id !== id);
-    save();
-    if (activeId === id) {
-      activeId = null;
-      renderChat(null);
-    }
-    renderSidebar();
-  }
-
-  function selectSession(id) {
-    activeId = id;
-    activeLocalId = null; // deselect local sidebar
-    const session = getSession(id);
-    resumedSessionId = session?.resumedFrom || null;
-    renderSidebar();
-    renderLocalSessions();
-    renderChat(session);
-    renderConfigBar();
-  }
-
-  // ── Sidebar Render ─────────────────────────────────────────────────────────
-  function renderSidebar() {
-    const list = document.getElementById('sessions-list');
-    if (sessions.length === 0) {
-      list.innerHTML = `<div style="padding:20px 16px;font-size:12px;color:var(--muted);font-family:var(--font-mono)">No sessions yet.<br>Hit + New Session.</div>`;
-      return;
-    }
-    list.innerHTML = sessions.map(s => `
-      <div class="session-item ${s.id === activeId ? 'active' : ''}" onclick="selectSession('${s.id}')">
-        <div class="session-dot"></div>
-        <div class="session-label" title="${s.label}">${s.label}</div>
-        <button class="session-delete" onclick="deleteSession('${s.id}', event)" title="Delete">×</button>
-      </div>
-    `).join('');
-  }
-
-  // ── Chat Render ────────────────────────────────────────────────────────────
-  function renderChat(session) {
-    const messagesEl = document.getElementById('messages');
-    const titleEl    = document.getElementById('session-title');
-    const countEl    = document.getElementById('msg-count');
-    const input      = document.getElementById('user-input');
-    const sendBtn    = document.getElementById('send-btn');
-    const configBar  = document.getElementById('config-bar');
-    const configEl   = document.getElementById('session-config');
-
-    if (!session) {
-      titleEl.textContent = '—';
-      countEl.textContent = '';
-      configEl.innerHTML = '';
-      input.disabled = true;
-      sendBtn.disabled = true;
-      configBar.style.display = 'none';
-      messagesEl.innerHTML = `
-        <div id="no-session">
-          <div class="no-session-icon">◎</div>
-          <div class="no-session-text">Select or create a session to begin</div>
-        </div>`;
-      return;
-    }
-
-    titleEl.textContent = session.label;
-    countEl.textContent = session.messages.length ? session.messages.length + ' msg' : '';
-    input.disabled = false;
-    sendBtn.disabled = false;
-    configBar.style.display = 'flex';
-    input.focus();
-
-    // Show config tags in header
-    renderSessionConfigTags(session);
-
-    if (session.messages.length === 0) {
-      messagesEl.innerHTML = `
-        <div id="empty-state">
-          <div class="empty-icon">⬡</div>
-          <div class="empty-title">Session ready</div>
-          <div class="empty-sub">Say something to start the conversation</div>
-        </div>`;
-      return;
-    }
-
-    // Show resumed banner if this session was loaded from a local session
-    let bannerHTML = '';
-    if (session.resumedFrom) {
-      bannerHTML = `
-        <div class="resumed-banner">
-          <span class="banner-icon">📂</span>
-          <span class="banner-text">Resumed from local Copilot session. Send a message to continue the conversation.</span>
-        </div>`;
-    }
-
-    messagesEl.innerHTML = bannerHTML + session.messages.map(m => msgHTML(m)).join('');
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  function msgHTML({ role, text }) {
-    const isUser = role === 'user';
-    return `
-      <div class="msg ${role}">
-        <div class="msg-avatar">${isUser ? 'YOU' : 'AI'}</div>
-        <div class="msg-body">
-          <div class="msg-role">${isUser ? 'You' : 'Agent'}</div>
-          <div class="msg-text">${escapeHtml(text)}</div>
-        </div>
-      </div>`;
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function appendMessage(role, text) {
-    const session = getSession(activeId);
-    session.messages.push({ role, text });
-
-    // update session label from first user message
-    if (role === 'user' && session.messages.filter(m => m.role === 'user').length === 1) {
-      session.label = text.slice(0, 36) + (text.length > 36 ? '…' : '');
-      renderSidebar();
-    }
-
-    const countEl = document.getElementById('msg-count');
-    countEl.textContent = session.messages.length + ' msg';
-
-    const messagesEl = document.getElementById('messages');
-    const empty = messagesEl.querySelector('#empty-state');
-    if (empty) empty.remove();
-
-    const el = document.createElement('div');
-    el.innerHTML = msgHTML({ role, text });
-    messagesEl.appendChild(el.firstElementChild);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-
-    save();
-  }
-
-  function showThinking() {
-    const messagesEl = document.getElementById('messages');
-    const el = document.createElement('div');
-    el.id = 'thinking';
-    el.className = 'thinking';
-    el.innerHTML = `
-      <div class="msg-avatar" style="background:rgba(255,255,255,.06);color:var(--muted);width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">AI</div>
-      <div class="thinking-dots"><span></span><span></span><span></span></div>`;
-    messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  function hideThinking() {
-    document.getElementById('thinking')?.remove();
-  }
-
-  // ── Tool Event HTML ────────────────────────────────────────────────────────
-  function toolEventHTML(type, tool, args) {
-    if (type === 'tool_start') {
-      const argsStr = args ? JSON.stringify(args).slice(0, 80) : '';
-      return `
-        <div class="tool-event start">
-          <span class="tool-icon">🔧</span>
-          <span class="tool-name">${escapeHtml(tool)}</span>
-          ${argsStr ? `<span class="tool-args">${escapeHtml(argsStr)}</span>` : ''}
-        </div>`;
-    } else if (type === 'tool_complete') {
-      return `
-        <div class="tool-event complete">
-          <span class="tool-icon">✓</span>
-          <span class="tool-name">${escapeHtml(tool)}</span>
-          <span>done</span>
-        </div>`;
-    }
-    return '';
-  }
-
-  // ── Streaming Message ──────────────────────────────────────────────────────
-  function createStreamingMessage() {
-    const messagesEl = document.getElementById('messages');
-    const empty = messagesEl.querySelector('#empty-state');
-    if (empty) empty.remove();
-
-    const el = document.createElement('div');
-    el.className = 'msg agent streaming';
-    el.id = 'streaming-msg';
-    el.innerHTML = `
-      <div class="msg-avatar">AI</div>
-      <div class="msg-body">
-        <div class="msg-role">Agent</div>
-        <div class="msg-text"></div>
-      </div>`;
-    messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return el;
-  }
-
-  function appendToStreamingMessage(content) {
-    const el = document.getElementById('streaming-msg');
-    if (el) {
-      const textEl = el.querySelector('.msg-text');
-      textEl.textContent += content;
-      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-    }
-  }
-
-  function finalizeStreamingMessage(fullContent) {
-    const el = document.getElementById('streaming-msg');
-    if (el) {
-      el.classList.remove('streaming');
-      el.id = '';
-      
-      // Save to session
-      const session = getSession(activeId);
-      session.messages.push({ role: 'agent', text: fullContent });
-      
-      const countEl = document.getElementById('msg-count');
-      countEl.textContent = session.messages.length + ' msg';
-      save();
-    }
-  }
-
-  function appendToolEvent(type, tool, args) {
-    const messagesEl = document.getElementById('messages');
-    const html = toolEventHTML(type, tool, args);
-    if (html) {
-      const el = document.createElement('div');
-      el.innerHTML = html;
-      messagesEl.appendChild(el.firstElementChild);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-  }
-
-  // ── Send Message ───────────────────────────────────────────────────────────
-  async function sendMessage() {
-    const input   = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-btn');
-    const text    = input.value.trim();
-    if (!text || !activeId) return;
-
-    const session = getSession(activeId);
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const streamEndpoint = endpoint.replace('/chat', '/chat/stream');
-
-    input.value = '';
-    input.style.height = 'auto';
-    sendBtn.disabled = true;
-    input.disabled = true;
-
-    appendMessage('user', text);
-
-    try {
-      const bodyPayload = {
-        message: text,
-        history: session.messages.slice(0, -1),
-        agents: session.agents || [],
-        skills: session.skills || [],
-        ui_session_id: session.id,
-      };
-
-      // If this is a resumed session and it's the first user message in this session,
-      // tell the backend to preload the local session history
-      if (session.resumedFrom) {
-        bodyPayload.resumed_session_id = session.resumedFrom;
-      }
-
-      const res = await fetch(streamEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-        body: JSON.stringify(bodyPayload)
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let streamingStarted = false;
-      let fullContent = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const event = JSON.parse(line.slice(6));
-
-              if (event.type === 'delta') {
-                if (!streamingStarted) {
-                  streamingStarted = true;
-                  createStreamingMessage();
-                }
-                fullContent += event.content;
-                appendToStreamingMessage(event.content);
-              }
-              else if (event.type === 'tool_start') {
-                appendToolEvent('tool_start', event.tool, event.args);
-              }
-              else if (event.type === 'tool_complete') {
-                appendToolEvent('tool_complete', event.tool);
-              }
-              else if (event.type === 'error') {
-                showError(event.message);
-              }
-              else if (event.type === 'done') {
-                if (!streamingStarted && event.content) {
-                  // Non-streaming fallback
-                  appendMessage('agent', event.content);
-                } else {
-                  finalizeStreamingMessage(fullContent);
-                }
-              }
-            } catch (e) {
-              // Skip malformed JSON
-            }
-          }
-        }
-      }
-
-      pingEndpoint();
-
-      // Lock config after first successful send
-      if (!session.configLocked) {
-        session.configLocked = true;
-        save();
-        renderConfigBar();
-      }
-
-    } catch (err) {
-      showError(err.message.includes('Failed to fetch')
-        ? 'Cannot reach agent — is Flask running?'
-        : 'Error: ' + err.message);
-    } finally {
-      sendBtn.disabled = false;
-      input.disabled = false;
-      input.focus();
-    }
-  }
-
-  // ── Error Toast ────────────────────────────────────────────────────────────
-  let toastTimer;
-  function showError(msg) {
-    const toast = document.getElementById('error-toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
-  }
-
-  // ── Endpoint Live Indicator ────────────────────────────────────────────────
-  async function pingEndpoint() {
-    const dot = document.getElementById('endpoint-dot');
-    const url = document.getElementById('endpoint-url').value.trim();
-    try {
-      await fetch(url.replace('/chat', '/health') , { method: 'GET', headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(2000) });
-      dot.classList.add('live');
-    } catch {
-      dot.classList.remove('live');
-    }
-  }
-
-  // ── Keyboard Handler ───────────────────────────────────────────────────────
-  document.getElementById('user-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // Auto-resize textarea
-  document.getElementById('user-input').addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-  });
-
-  // Re-ping when endpoint URL is edited
-  document.getElementById('endpoint-url').addEventListener('change', pingEndpoint);
-
-  // ── Local Sessions ─────────────────────────────────────────────────────────
-
-  async function fetchLocalSessions() {
-    const btn = document.getElementById('fetch-local-btn');
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
-
-    btn.disabled = true;
-    btn.textContent = '⏳ FETCHING...';
-
-    try {
-      // First trigger a fresh fetch from the CLI
-      const fetchRes = await fetch(baseUrl + '/local-sessions/fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-        body: JSON.stringify({ limit: 50 })
-      });
-
-      if (!fetchRes.ok) throw new Error(`Fetch failed: HTTP ${fetchRes.status}`);
-      const fetchResult = await fetchRes.json();
-
-      // Now load the list
-      await loadLocalSessionsList();
-
-      btn.textContent = `↓ FETCHED ${fetchResult.fetched || 0} SESSIONS`;
-      setTimeout(() => { btn.textContent = '↓ Fetch Local Sessions'; }, 3000);
-    } catch (err) {
-      showError('Failed to fetch local sessions: ' + err.message);
-      btn.textContent = '↓ Fetch Local Sessions';
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  async function loadLocalSessionsList(silent = false) {
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
-
-    try {
-      const res = await fetch(baseUrl + '/local-sessions', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      localSessions = data.sessions || [];
-      renderLocalSessions();
-    } catch (err) {
-      if (!silent) showError('Failed to load local sessions: ' + err.message);
-    }
-  }
-
-  function renderLocalSessions() {
-    const container = document.getElementById('local-sessions-container');
-    const list = document.getElementById('local-sessions-list');
-
-    if (localSessions.length === 0) {
-      container.style.display = 'none';
-      return;
-    }
-
-    container.style.display = 'block';
-
-    list.innerHTML = localSessions.map(s => {
-      const summary = s.summary || 'Untitled session';
-      const time = s.startTimeLocal || '';
-      const repo = s.repository ? `• ${s.repository}` : '';
-      return `
-        <div class="local-session-item ${s.sessionId === activeLocalId ? 'active' : ''}"
-             onclick="selectLocalSession('${s.sessionId}')"
-             title="${escapeHtml(summary)}">
-          <div class="local-session-summary">${escapeHtml(summary)}</div>
-          <div class="local-session-meta">${time} ${repo}</div>
-        </div>`;
-    }).join('');
-  }
-
-  async function selectLocalSession(sessionId) {
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
-
-    activeLocalId = sessionId;
-    renderLocalSessions();
-
-    try {
-      const res = await fetch(baseUrl + '/local-sessions/' + sessionId, { headers: { 'ngrok-skip-browser-warning': '1' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      // Create a new local UI session from this
-      const id = 'local_' + sessionId.slice(0, 8) + '_' + Date.now();
-      const label = data.summary || 'Local Session';
-      const messages = data.messages || [];
-
-      sessions.unshift({
-        id,
-        label: '📂 ' + label,
-        messages,
-        resumedFrom: sessionId,
-        agents: [],
-        skills: [],
-        configLocked: false,
-      });
-      save();
-      renderSidebar();
-      selectSession(id);
-    } catch (err) {
-      showError('Failed to load session: ' + err.message);
-    }
-  }
-
-  // ── Agent & Skill Management ──────────────────────────────────────────────
-
-  async function loadAvailableAgents() {
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
-    try {
-      const res = await fetch(baseUrl + '/agents', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = await res.json();
-        availableAgents = data.agents || [];
-      }
-    } catch {}
-  }
-
-  async function loadAvailableSkills() {
-    const endpoint = document.getElementById('endpoint-url').value.trim();
-    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
-    try {
-      const res = await fetch(baseUrl + '/skills', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = await res.json();
-        availableSkills = data.skills || [];
-      }
-    } catch {}
-  }
-
-  function renderConfigBar() {
-    const session = getSession(activeId);
-    if (!session) return;
-    renderAgentOptions();
-    renderSkillOptions();
-    renderConfigPills();
-    updateConfigTriggers();
-    renderSessionConfigTags(session);
-  }
-
-  function renderAgentOptions() {
-    const container = document.getElementById('agent-options');
-    const session = getSession(activeId);
-    const selected = session?.agents || [];
-    const locked = session?.configLocked || false;
-
-    if (availableAgents.length === 0) {
-      container.innerHTML = '<div class="config-empty">No agents found in agents/ directory</div>';
-      return;
-    }
-
-    container.innerHTML = availableAgents.map(a => {
-      const isSelected = selected.includes(a.slug);
-      return `
-        <div class="config-option ${isSelected ? 'selected' : ''} ${locked ? 'locked' : ''}"
-             onclick="${locked ? '' : "toggleAgent('" + a.slug + "')"}">
-          <div class="config-option-check">${isSelected ? '✓' : ''}</div>
-          <div class="config-option-info">
-            <div class="config-option-name">@${escapeHtml(a.display_name || a.slug)}</div>
-            <div class="config-option-desc">${escapeHtml(a.description || '')}</div>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function renderSkillOptions() {
-    const container = document.getElementById('skill-options');
-    const session = getSession(activeId);
-    const selected = session?.skills || [];
-    const locked = session?.configLocked || false;
-
-    if (availableSkills.length === 0) {
-      container.innerHTML = '<div class="config-empty">No skills found in skills/ directory</div>';
-      return;
-    }
-
-    container.innerHTML = availableSkills.map(s => {
-      const isSelected = selected.includes(s.slug);
-      return `
-        <div class="config-option ${isSelected ? 'selected' : ''} ${locked ? 'locked' : ''}"
-             onclick="${locked ? '' : "toggleSkill('" + s.slug + "')"}">
-          <div class="config-option-check">${isSelected ? '✓' : ''}</div>
-          <div class="config-option-info">
-            <div class="config-option-name">#${escapeHtml(s.name || s.slug)}</div>
-            <div class="config-option-desc">${escapeHtml(s.description || '')}</div>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function toggleAgent(slug) {
-    const session = getSession(activeId);
-    if (!session || session.configLocked) return;
-    if (!session.agents) session.agents = [];
-    const idx = session.agents.indexOf(slug);
-    if (idx >= 0) session.agents.splice(idx, 1);
-    else session.agents.push(slug);
-    save();
-    renderAgentOptions();
-    renderConfigPills();
-    updateConfigTriggers();
-    renderSessionConfigTags(session);
-  }
-
-  function toggleSkill(slug) {
-    const session = getSession(activeId);
-    if (!session || session.configLocked) return;
-    if (!session.skills) session.skills = [];
-    const idx = session.skills.indexOf(slug);
-    if (idx >= 0) session.skills.splice(idx, 1);
-    else session.skills.push(slug);
-    save();
-    renderSkillOptions();
-    renderConfigPills();
-    updateConfigTriggers();
-    renderSessionConfigTags(session);
-  }
-
-  function removeAgent(slug) {
-    const session = getSession(activeId);
-    if (!session || session.configLocked) return;
-    session.agents = (session.agents || []).filter(s => s !== slug);
-    save();
-    renderAgentOptions();
-    renderConfigPills();
-    updateConfigTriggers();
-    renderSessionConfigTags(session);
-  }
-
-  function removeSkill(slug) {
-    const session = getSession(activeId);
-    if (!session || session.configLocked) return;
-    session.skills = (session.skills || []).filter(s => s !== slug);
-    save();
-    renderSkillOptions();
-    renderConfigPills();
-    updateConfigTriggers();
-    renderSessionConfigTags(session);
-  }
-
-  function renderConfigPills() {
-    const container = document.getElementById('config-pills');
-    const session = getSession(activeId);
-    if (!session) { container.innerHTML = ''; return; }
-
-    const locked = session.configLocked || false;
-    const agents = session.agents || [];
-    const skills = session.skills || [];
-
-    let html = '';
-    agents.forEach(slug => {
-      const agent = availableAgents.find(a => a.slug === slug);
-      const name = agent?.display_name || slug;
-      html += `<span class="config-pill agent-pill ${locked ? 'locked' : ''}">
-        @${escapeHtml(name)}
-        <span class="pill-remove" onclick="removeAgent('${slug}')">×</span>
-      </span>`;
-    });
-    skills.forEach(slug => {
-      const skill = availableSkills.find(s => s.slug === slug);
-      const name = skill?.name || slug;
-      html += `<span class="config-pill skill-pill ${locked ? 'locked' : ''}">
-        #${escapeHtml(name)}
-        <span class="pill-remove" onclick="removeSkill('${slug}')">×</span>
-      </span>`;
-    });
-    container.innerHTML = html;
-  }
-
-  function updateConfigTriggers() {
-    const session = getSession(activeId);
-    const agents = session?.agents || [];
-    const skills = session?.skills || [];
-    const locked = session?.configLocked || false;
-
-    const agentBtn = document.querySelector('#agent-selector .config-trigger');
-    const skillBtn = document.querySelector('#skill-selector .config-trigger');
-    const agentCount = document.getElementById('agent-count');
-    const skillCount = document.getElementById('skill-count');
-
-    agentBtn.classList.toggle('active', agents.length > 0);
-    skillBtn.classList.toggle('active', skills.length > 0);
-    agentBtn.classList.toggle('locked', locked);
-    skillBtn.classList.toggle('locked', locked);
-
-    agentCount.textContent = agents.length;
-    agentCount.style.display = agents.length > 0 ? 'inline' : 'none';
-    skillCount.textContent = skills.length;
-    skillCount.style.display = skills.length > 0 ? 'inline' : 'none';
-  }
-
-  function renderSessionConfigTags(session) {
-    const configEl = document.getElementById('session-config');
-    if (!session) { configEl.innerHTML = ''; return; }
-
-    const agents = session.agents || [];
-    const skills = session.skills || [];
-
-    if (agents.length === 0 && skills.length === 0) {
-      configEl.innerHTML = '';
-      return;
-    }
-
-    let html = '';
-    agents.forEach(slug => {
-      const agent = availableAgents.find(a => a.slug === slug);
-      html += `<span class="session-config-tag agent-tag">@${escapeHtml(agent?.display_name || slug)}</span>`;
-    });
-    skills.forEach(slug => {
-      const skill = availableSkills.find(s => s.slug === slug);
-      html += `<span class="session-config-tag skill-tag">#${escapeHtml(skill?.name || slug)}</span>`;
-    });
-    configEl.innerHTML = html;
-  }
-
-  function toggleDropdown(type) {
-    const session = getSession(activeId);
-    if (session?.configLocked) return; // don't open if locked
-
-    const agentDD = document.getElementById('agent-dropdown');
-    const skillDD = document.getElementById('skill-dropdown');
-
-    if (type === 'agent') {
-      const isOpen = agentDD.classList.contains('show');
-      agentDD.classList.toggle('show', !isOpen);
-      skillDD.classList.remove('show');
-      if (!isOpen) renderAgentOptions();
-    } else {
-      const isOpen = skillDD.classList.contains('show');
-      skillDD.classList.toggle('show', !isOpen);
-      agentDD.classList.remove('show');
-      if (!isOpen) renderSkillOptions();
-    }
-  }
-
-  // Close dropdowns when clicking outside
-  document.addEventListener('click', e => {
-    if (!e.target.closest('#agent-selector')) {
-      document.getElementById('agent-dropdown').classList.remove('show');
-    }
-    if (!e.target.closest('#skill-selector')) {
-      document.getElementById('skill-dropdown').classList.remove('show');
-    }
-  });
-
-  // ── Init ───────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
+let sessions        = JSON.parse(localStorage.getItem('ac2_sessions') || '[]');
+let activeId        = null;
+let localSessions   = [];
+let activeLocalId   = null;
+let availableAgents = [];
+let availableSkills = [];
+
+const save    = () => localStorage.setItem('ac2_sessions', JSON.stringify(sessions));
+const getSess = id  => sessions.find(s => s.id === id);
+const isTouch = ()  => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const esc     = s   => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('on');
+  document.body.style.overflow = '';
+}
+// swipe-left to dismiss
+!(function() {
+  let x0 = 0;
+  const sb = document.getElementById('sidebar');
+  sb.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  sb.addEventListener('touchend',   e => { if (x0 - e.changedTouches[0].clientX > 55) closeSidebar(); }, { passive: true });
+})();
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+function newSession() {
+  const id    = 'sess_' + Date.now();
+  const label = 'Session ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  sessions.unshift({ id, label, messages: [], agents: [], skills: [], configLocked: false });
+  save(); renderSidebar(); selectSession(id);
+}
+
+function deleteSession(id, e) {
+  e.stopPropagation();
+  sessions = sessions.filter(s => s.id !== id);
+  save();
+  if (activeId === id) { activeId = null; renderChat(null); }
   renderSidebar();
-  renderChat(null);
-  pingEndpoint();
-  loadLocalSessionsList(true); // silently load any already-fetched local sessions
-  loadAvailableAgents();       // load agents from /agents endpoint
-  loadAvailableSkills();       // load skills from /skills endpoint
-  setInterval(pingEndpoint, 30000); // ping every 30s
+}
+
+function selectSession(id) {
+  activeId = id; activeLocalId = null;
+  renderSidebar(); renderLocalSessions(); renderChat(getSess(id)); renderConfigBar();
+  closeSidebar();
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sessions-list');
+  if (!sessions.length) {
+    el.innerHTML = `<div style="padding:18px 14px;font-size:11.5px;color:var(--text-3);line-height:1.7">No sessions yet.<br>Hit + New Session to begin.</div>`;
+    return;
+  }
+  el.innerHTML = sessions.map(s => `
+    <div class="session-item ${s.id===activeId?'active':''}" onclick="selectSession('${s.id}')">
+      <div class="session-dot"></div>
+      <div class="session-label" title="${esc(s.label)}">${esc(s.label)}</div>
+      <button class="session-delete" onclick="deleteSession('${s.id}',event)" aria-label="Delete">×</button>
+    </div>`).join('');
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function renderChat(session) {
+  const msgs   = document.getElementById('messages');
+  const title  = document.getElementById('session-title');
+  const count  = document.getElementById('msg-count');
+  const input  = document.getElementById('user-input');
+  const btn    = document.getElementById('send-btn');
+  const cfgBar = document.getElementById('config-bar');
+  const hcfg   = document.getElementById('session-config');
+
+  if (!session) {
+    title.textContent = '—'; count.textContent = '';
+    hcfg.innerHTML = ''; input.disabled = true; btn.disabled = true; cfgBar.style.display = 'none';
+    msgs.innerHTML = `<div id="no-session"><div class="empty-icon">◎</div><div class="empty-sub">Select or create a session to begin</div></div>`;
+    return;
+  }
+
+  title.textContent = session.label;
+  count.textContent = session.messages.length ? session.messages.length + ' msg' : '';
+  input.disabled = false; btn.disabled = false; cfgBar.style.display = 'flex';
+  renderHeaderConfig(session);
+
+  if (!session.messages.length) {
+    msgs.innerHTML = `<div id="empty-state"><div class="empty-icon">⬡</div><div class="empty-title">Session ready</div><div class="empty-sub">Say something to start the conversation</div></div>`;
+    if (!isTouch()) input.focus();
+    return;
+  }
+
+  let html = session.resumedFrom
+    ? `<div class="resumed-banner"><span>📂</span><span>Resumed from local session — send a message to continue.</span></div>`
+    : '';
+  msgs.innerHTML = html + session.messages.map(m => msgHTML(m)).join('');
+  msgs.scrollTop = msgs.scrollHeight;
+  if (!isTouch()) input.focus();
+}
+
+function msgHTML({ role, text }) {
+  const u = role === 'user';
+  return `<div class="msg ${role}">
+    <div class="msg-avatar">${u ? 'YOU' : 'AI'}</div>
+    <div class="msg-body">
+      <div class="msg-role">${u ? 'You' : 'Agent'}</div>
+      <div class="msg-text">${esc(text)}</div>
+    </div>
+  </div>`;
+}
+
+function appendMessage(role, text) {
+  const s = getSess(activeId);
+  s.messages.push({ role, text });
+  if (role === 'user' && s.messages.filter(m => m.role==='user').length === 1) {
+    s.label = text.slice(0,36) + (text.length>36 ? '…':'');
+    renderSidebar();
+  }
+  document.getElementById('msg-count').textContent = s.messages.length + ' msg';
+  const msgs = document.getElementById('messages');
+  msgs.querySelector('#empty-state')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = msgHTML({ role, text });
+  msgs.appendChild(el.firstElementChild);
+  msgs.scrollTop = msgs.scrollHeight;
+  save();
+}
+
+// ── Thinking ──────────────────────────────────────────────────────────────────
+function showThinking() {
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.id = 'thinking'; el.className = 'thinking';
+  el.innerHTML = `
+    <div class="msg-avatar" style="background:var(--surface);border:1px solid var(--border-2);color:var(--text-2)">AI</div>
+    <div class="thinking-dots"><span></span><span></span><span></span></div>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function hideThinking() { document.getElementById('thinking')?.remove(); }
+
+// ── Tool Events ── pixel-faithful to the screenshot ───────────────────────────
+// Renders:  ◉  toolname  {"path":"C:\\Users\\...","key":"val",...}
+// tool-name = bold blue (#6b9cf8), args = muted dark grey, bullet = dim blue
+// No background — plain indented rows, exactly as in screenshot
+function toolEventHTML(type, tool, args) {
+  let argsStr = '';
+  if (args !== null && args !== undefined) {
+    try { argsStr = typeof args === 'string' ? args : JSON.stringify(args); }
+    catch(e) { argsStr = String(args); }
+    // Truncate but keep it readable — match screenshot which shows ~60 chars
+    if (argsStr.length > 120) argsStr = argsStr.slice(0, 117) + '...';
+  }
+
+  const argsSpan = argsStr ? `<span class="tool-args">${esc(argsStr)}</span>` : '';
+
+  if (type === 'tool_start') {
+    return `<div class="tool-event start">
+      <span class="tool-bullet">◉</span>
+      <span class="tool-name">${esc(tool)}</span>
+      ${argsSpan}
+    </div>`;
+  }
+  if (type === 'tool_complete') {
+    return `<div class="tool-event complete">
+      <span class="tool-bullet">✓</span>
+      <span class="tool-name">${esc(tool)}</span>
+      ${argsSpan || '<span class="tool-args" style="opacity:.3">done</span>'}
+    </div>`;
+  }
+  if (type === 'tool_error') {
+    return `<div class="tool-event error">
+      <span class="tool-bullet">✕</span>
+      <span class="tool-name">${esc(tool)}</span>
+      ${argsSpan}
+    </div>`;
+  }
+  return '';
+}
+
+function appendToolEvent(type, tool, args) {
+  const msgs = document.getElementById('messages');
+
+  // On complete/error: update the last matching start row in-place instead of adding "null done"
+  if (type === 'tool_complete' || type === 'tool_error') {
+    const cls = type === 'tool_complete' ? 'complete' : 'error';
+    const bullet = type === 'tool_complete' ? '✓' : '✕';
+    // Find the last .tool-event.start that matches this tool (or just the last one if tool is null)
+    const starts = msgs.querySelectorAll('.tool-event.start');
+    let target = null;
+    for (let i = starts.length - 1; i >= 0; i--) {
+      const nameEl = starts[i].querySelector('.tool-name');
+      if (!tool || (nameEl && nameEl.textContent === tool)) { target = starts[i]; break; }
+    }
+    if (target) {
+      target.classList.remove('start');
+      target.classList.add(cls);
+      target.querySelector('.tool-bullet').textContent = bullet;
+      msgs.scrollTop = msgs.scrollHeight;
+      return;
+    }
+    // If no matching start found and tool name is null/empty, skip the row entirely
+    if (!tool) return;
+  }
+
+  const html = toolEventHTML(type, tool, args);
+  if (!html) return;
+  const el   = document.createElement('div');
+  el.innerHTML = html;
+  msgs.appendChild(el.firstElementChild);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ── Streaming ─────────────────────────────────────────────────────────────────
+function createStreamingMessage() {
+  const msgs = document.getElementById('messages');
+  msgs.querySelector('#empty-state')?.remove();
+  const el = document.createElement('div');
+  el.className = 'msg agent streaming'; el.id = 'streaming-msg';
+  el.innerHTML = `<div class="msg-avatar">AI</div><div class="msg-body"><div class="msg-role">Agent</div><div class="msg-text"></div></div>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function appendToStream(c) {
+  const el = document.getElementById('streaming-msg');
+  if (!el) return;
+  el.querySelector('.msg-text').textContent += c;
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+function finalizeStream(full) {
+  const el = document.getElementById('streaming-msg');
+  if (!el) return;
+  el.classList.remove('streaming'); el.id = '';
+  const s = getSess(activeId);
+  s.messages.push({ role: 'agent', text: full });
+  document.getElementById('msg-count').textContent = s.messages.length + ' msg';
+  save();
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function sendMessage() {
+  const input  = document.getElementById('user-input');
+  const sendBtn = document.getElementById('send-btn');
+  const text   = input.value.trim();
+  if (!text || !activeId) return;
+
+  const s   = getSess(activeId);
+  const ep  = document.getElementById('endpoint-url').value.trim();
+  const sep = ep.replace('/chat', '/chat/stream');
+
+  input.value = ''; input.style.height = 'auto';
+  sendBtn.disabled = true; input.disabled = true;
+  appendMessage('user', text);
+  if (isTouch()) input.blur();
+
+  try {
+    const body = {
+      message: text,
+      history: s.messages.slice(0, -1),
+      agents:  s.agents  || [],
+      skills:  s.skills  || [],
+      ui_session_id: s.id,
+    };
+    if (s.resumedFrom) body.resumed_session_id = s.resumedFrom;
+
+    const res = await fetch(sep, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let started = false, full = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.type === 'delta') {
+            if (!started) { started = true; createStreamingMessage(); }
+            full += ev.content; appendToStream(ev.content);
+          }
+          else if (ev.type === 'tool_start')
+            appendToolEvent('tool_start',   ev.tool, ev.args ?? ev.input ?? null);
+          else if (ev.type === 'tool_complete')
+            appendToolEvent('tool_complete', ev.tool, ev.result ?? null);
+          else if (ev.type === 'tool_error')
+            appendToolEvent('tool_error',   ev.tool, ev.error ?? null);
+          else if (ev.type === 'error')
+            showError(ev.message);
+          else if (ev.type === 'done') {
+            if (!started && ev.content) appendMessage('agent', ev.content);
+            else finalizeStream(full);
+          }
+        } catch (_) {}
+      }
+    }
+
+    pingEndpoint();
+    if (!s.configLocked) { s.configLocked = true; save(); renderConfigBar(); }
+
+  } catch (err) {
+    showError(err.message.includes('Failed to fetch')
+      ? 'Cannot reach agent — is Flask running?'
+      : 'Error: ' + err.message);
+  } finally {
+    sendBtn.disabled = false; input.disabled = false;
+    if (!isTouch()) input.focus();
+  }
+}
+
+// ── Toast / Ping ──────────────────────────────────────────────────────────────
+let toastT;
+function showError(msg) {
+  const t = document.getElementById('error-toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4000);
+}
+async function pingEndpoint() {
+  const dot = document.getElementById('endpoint-dot');
+  const url = document.getElementById('endpoint-url').value.trim();
+  try {
+    await fetch(url.replace('/chat', '/health'), {
+      method: 'GET', headers: { 'ngrok-skip-browser-warning': '1' },
+      signal: AbortSignal.timeout(2000)
+    });
+    dot.classList.add('live');
+  } catch { dot.classList.remove('live'); }
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.getElementById('user-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('user-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+document.getElementById('endpoint-url').addEventListener('change', pingEndpoint);
+
+// close dropdowns on outside click / tap
+const closeDD = e => {
+  if (!e.target.closest('#agent-sel')) document.getElementById('agent-dd').classList.remove('open');
+  if (!e.target.closest('#skill-sel')) document.getElementById('skill-dd').classList.remove('open');
+};
+document.addEventListener('click', closeDD);
+document.addEventListener('touchstart', closeDD, { passive: true });
+
+// ── Local Sessions ────────────────────────────────────────────────────────────
+async function fetchLocalSessions() {
+  const btn  = document.getElementById('fetch-local-btn');
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  btn.disabled = true; btn.textContent = 'Fetching…';
+  try {
+    const r = await fetch(base + '/local-sessions/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ limit: 50 })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    await loadLocalSessions();
+    btn.textContent = `✓ ${d.fetched||0} fetched`;
+    setTimeout(resetFetchBtn, 3000);
+  } catch (err) {
+    showError('Failed: ' + err.message); resetFetchBtn();
+  } finally { btn.disabled = false; }
+}
+function resetFetchBtn() {
+  document.getElementById('fetch-local-btn').innerHTML =
+    `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+       <polyline points="8 17 12 21 16 17"/><line x1="12" y1="21" x2="12" y2="3"/>
+     </svg> Fetch Local Sessions`;
+}
+
+async function loadLocalSessions(silent = false) {
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  try {
+    const r = await fetch(base + '/local-sessions', {
+      headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    localSessions = (await r.json()).sessions || [];
+    renderLocalSessions();
+  } catch (err) { if (!silent) showError('Failed: ' + err.message); }
+}
+
+function renderLocalSessions() {
+  const container = document.getElementById('local-sessions-container');
+  const list      = document.getElementById('local-sessions-list');
+  if (!localSessions.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  list.innerHTML = localSessions.map(s => `
+    <div class="local-item ${s.sessionId===activeLocalId?'active':''}"
+         onclick="selectLocalSession('${s.sessionId}')" title="${esc(s.summary||'')}">
+      <div class="local-summary">${esc(s.summary||'Untitled session')}</div>
+      <div class="local-meta">${s.startTimeLocal||''} ${s.repository?'· '+s.repository:''}</div>
+    </div>`).join('');
+}
+
+async function selectLocalSession(id) {
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  activeLocalId = id; renderLocalSessions();
+  try {
+    const r = await fetch(base + '/local-sessions/' + id, { headers: { 'ngrok-skip-browser-warning': '1' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const sid = 'local_' + id.slice(0,8) + '_' + Date.now();
+    sessions.unshift({ id: sid, label: '📂 ' + (d.summary||'Local Session'), messages: d.messages||[], resumedFrom: id, agents:[], skills:[], configLocked: false });
+    save(); renderSidebar(); selectSession(sid);
+  } catch (err) { showError('Failed: ' + err.message); }
+}
+
+// ── Agents & Skills ───────────────────────────────────────────────────────────
+async function loadAgents() {
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  try {
+    const r = await fetch(base + '/agents', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
+    if (r.ok) availableAgents = (await r.json()).agents || [];
+  } catch {}
+}
+async function loadSkills() {
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  try {
+    const r = await fetch(base + '/skills', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
+    if (r.ok) availableSkills = (await r.json()).skills || [];
+  } catch {}
+}
+
+function renderConfigBar() {
+  const s = getSess(activeId); if (!s) return;
+  renderAgentOpts(); renderSkillOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+}
+
+function renderHeaderConfig(s) {
+  const el = document.getElementById('session-config');
+  if (!s) { el.innerHTML = ''; return; }
+  let html = '';
+  (s.agents||[]).forEach(slug => {
+    const a = availableAgents.find(x=>x.slug===slug);
+    html += `<span class="hcfg-pill agent">@${esc(a?.display_name||slug)}</span>`;
+  });
+  (s.skills||[]).forEach(slug => {
+    const sk = availableSkills.find(x=>x.slug===slug);
+    html += `<span class="hcfg-pill skill">#${esc(sk?.name||slug)}</span>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderAgentOpts() {
+  const s = getSess(activeId), sel = s?.agents||[], locked = s?.configLocked||false;
+  const el = document.getElementById('agent-opts');
+  if (!availableAgents.length) { el.innerHTML = '<div class="cfg-empty">No agents found</div>'; return; }
+  el.innerHTML = availableAgents.map(a => {
+    const on = sel.includes(a.slug);
+    return `<div class="cfg-opt ${on?'sel':''} ${locked?'locked':''}" onclick="${locked?'':` toggleAgent('${a.slug}')`}">
+      <div class="cfg-chk">${on?'✓':''}</div>
+      <div class="cfg-info"><div class="cfg-name">@${esc(a.display_name||a.slug)}</div><div class="cfg-desc">${esc(a.description||'')}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderSkillOpts() {
+  const s = getSess(activeId), sel = s?.skills||[], locked = s?.configLocked||false;
+  const el = document.getElementById('skill-opts');
+  if (!availableSkills.length) { el.innerHTML = '<div class="cfg-empty">No skills found</div>'; return; }
+  el.innerHTML = availableSkills.map(sk => {
+    const on = sel.includes(sk.slug);
+    return `<div class="cfg-opt ${on?'sel':''} ${locked?'locked':''}" onclick="${locked?'':` toggleSkill('${sk.slug}')`}">
+      <div class="cfg-chk">${on?'✓':''}</div>
+      <div class="cfg-info"><div class="cfg-name">#${esc(sk.name||sk.slug)}</div><div class="cfg-desc">${esc(sk.description||'')}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAgent(slug) {
+  const s = getSess(activeId); if (!s||s.configLocked) return;
+  if (!s.agents) s.agents = [];
+  const i = s.agents.indexOf(slug); if (i>=0) s.agents.splice(i,1); else s.agents.push(slug);
+  save(); renderAgentOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+}
+function toggleSkill(slug) {
+  const s = getSess(activeId); if (!s||s.configLocked) return;
+  if (!s.skills) s.skills = [];
+  const i = s.skills.indexOf(slug); if (i>=0) s.skills.splice(i,1); else s.skills.push(slug);
+  save(); renderSkillOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+}
+function removeAgent(slug) {
+  const s = getSess(activeId); if (!s||s.configLocked) return;
+  s.agents = (s.agents||[]).filter(x=>x!==slug);
+  save(); renderAgentOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+}
+function removeSkill(slug) {
+  const s = getSess(activeId); if (!s||s.configLocked) return;
+  s.skills = (s.skills||[]).filter(x=>x!==slug);
+  save(); renderSkillOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+}
+
+function renderPills() {
+  const s = getSess(activeId); const el = document.getElementById('cfg-pills');
+  if (!s) { el.innerHTML = ''; return; }
+  const locked = s.configLocked||false;
+  let html = '';
+  (s.agents||[]).forEach(slug => {
+    const a = availableAgents.find(x=>x.slug===slug);
+    html += `<span class="cfg-pill agent ${locked?'locked':''}">@${esc(a?.display_name||slug)}<span class="px" onclick="removeAgent('${slug}')">×</span></span>`;
+  });
+  (s.skills||[]).forEach(slug => {
+    const sk = availableSkills.find(x=>x.slug===slug);
+    html += `<span class="cfg-pill skill ${locked?'locked':''}">@${esc(sk?.name||slug)}<span class="px" onclick="removeSkill('${slug}')">×</span></span>`;
+  });
+  el.innerHTML = html;
+}
+
+function updateTriggers() {
+  const s = getSess(activeId);
+  const agents = s?.agents||[], skills = s?.skills||[], locked = s?.configLocked||false;
+  const ab = document.querySelector('#agent-sel .cfg-trigger');
+  const sb = document.querySelector('#skill-sel .cfg-trigger');
+  ab.classList.toggle('active', agents.length>0);
+  sb.classList.toggle('active', skills.length>0);
+  ab.classList.toggle('locked', locked);
+  sb.classList.toggle('locked', locked);
+  const ac = document.getElementById('agent-count');
+  const sc = document.getElementById('skill-count');
+  ac.textContent = agents.length; ac.style.display = agents.length ? 'inline':'none';
+  sc.textContent = skills.length; sc.style.display = skills.length ? 'inline':'none';
+}
+
+function toggleDD(type) {
+  const s = getSess(activeId); if (s?.configLocked) return;
+  const add = document.getElementById('agent-dd');
+  const sdd = document.getElementById('skill-dd');
+  if (type === 'agent') {
+    const open = add.classList.contains('open');
+    add.classList.toggle('open', !open); sdd.classList.remove('open');
+    if (!open) renderAgentOpts();
+  } else {
+    const open = sdd.classList.contains('open');
+    sdd.classList.toggle('open', !open); add.classList.remove('open');
+    if (!open) renderSkillOpts();
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderSidebar();
+renderChat(null);
+pingEndpoint();
+loadLocalSessions(true);
+loadAgents();
+loadSkills();
+setInterval(pingEndpoint, 30000);
 </script>
 </body>
 </html>

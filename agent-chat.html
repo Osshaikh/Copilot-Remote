@@ -516,6 +516,216 @@
     0%, 50% { border-color: var(--accent); }
     51%, 100% { border-color: transparent; }
   }
+
+  /* ── Config Bar (Agent & Skill Selection) ── */
+  #config-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0 2px;
+    flex-wrap: wrap;
+  }
+
+  .config-selector {
+    position: relative;
+  }
+
+  .config-trigger {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .config-trigger:hover {
+    background: rgba(200,241,53,.06);
+    border-color: rgba(200,241,53,.2);
+    color: var(--text);
+  }
+  .config-trigger.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(200,241,53,.08);
+  }
+  .config-trigger.locked {
+    opacity: .5;
+    cursor: default;
+  }
+  .config-trigger .trigger-icon {
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .config-trigger .trigger-count {
+    background: var(--accent);
+    color: #0d0d0f;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .config-dropdown {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    min-width: 300px;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    z-index: 50;
+    padding: 4px;
+  }
+  .config-dropdown.show { display: block; }
+  .config-dropdown::-webkit-scrollbar { width: 4px; }
+  .config-dropdown::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .config-dropdown-header {
+    padding: 8px 10px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .config-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .config-option:hover {
+    background: rgba(255,255,255,.04);
+  }
+  .config-option.selected {
+    background: rgba(200,241,53,.06);
+  }
+  .config-option.locked {
+    opacity: .5;
+    cursor: default;
+  }
+
+  .config-option-check {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--muted);
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    transition: all .12s;
+    font-size: 10px;
+    color: transparent;
+  }
+  .config-option.selected .config-option-check {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #0d0d0f;
+  }
+
+  .config-option-info { flex: 1; min-width: 0; }
+  .config-option-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .config-option-desc {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .config-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .config-pill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .config-pill.agent-pill {
+    background: rgba(126,184,218,.12);
+    border: 1px solid rgba(126,184,218,.25);
+    color: #7eb8da;
+  }
+  .config-pill.skill-pill {
+    background: rgba(200,241,53,.1);
+    border: 1px solid rgba(200,241,53,.2);
+    color: var(--accent);
+  }
+  .config-pill .pill-remove {
+    cursor: pointer;
+    opacity: .6;
+    font-size: 12px;
+    line-height: 1;
+    transition: opacity .12s;
+  }
+  .config-pill .pill-remove:hover { opacity: 1; }
+  .config-pill.locked .pill-remove { display: none; }
+
+  .session-config-display {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .session-config-tag {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .session-config-tag.agent-tag {
+    background: rgba(126,184,218,.1);
+    color: #7eb8da;
+  }
+  .session-config-tag.skill-tag {
+    background: rgba(200,241,53,.1);
+    color: var(--accent-dim);
+  }
+
+  .config-empty {
+    padding: 12px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -538,20 +748,48 @@
         <div class="endpoint-dot" id="endpoint-dot"></div>
         <span>agent endpoint</span>
       </div>
-      <input id="endpoint-url" type="text" value="http://localhost:5000/chat" spellcheck="false" title="Edit agent endpoint URL" />
+      <input id="endpoint-url" type="text" value="https://lyle-unhectored-myron.ngrok-free.dev/chat" spellcheck="false" title="Edit agent endpoint URL" />
     </div>
   </aside>
 
   <!-- ── Main ── -->
   <main id="main">
     <div id="chat-header">
-      <div id="session-title">—</div>
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
+        <div id="session-title">—</div>
+        <div id="session-config" class="session-config-display"></div>
+      </div>
       <div id="msg-count"></div>
     </div>
 
     <div id="messages"></div>
 
     <div id="input-area">
+      <div id="config-bar">
+        <div class="config-selector" id="agent-selector">
+          <div class="config-dropdown" id="agent-dropdown">
+            <div class="config-dropdown-header">Sub-Agents</div>
+            <div id="agent-options"></div>
+          </div>
+          <button class="config-trigger" onclick="toggleDropdown('agent')">
+            <span class="trigger-icon">@</span>
+            <span>Agents</span>
+            <span class="trigger-count" id="agent-count" style="display:none">0</span>
+          </button>
+        </div>
+        <div class="config-selector" id="skill-selector">
+          <div class="config-dropdown" id="skill-dropdown">
+            <div class="config-dropdown-header">Skills</div>
+            <div id="skill-options"></div>
+          </div>
+          <button class="config-trigger" onclick="toggleDropdown('skill')">
+            <span class="trigger-icon">#</span>
+            <span>Skills</span>
+            <span class="trigger-count" id="skill-count" style="display:none">0</span>
+          </button>
+        </div>
+        <div class="config-pills" id="config-pills"></div>
+      </div>
       <div id="input-wrap">
         <textarea id="user-input" rows="1" placeholder="Message the agent…" disabled></textarea>
         <button id="send-btn" disabled onclick="sendMessage()">
@@ -572,6 +810,8 @@
   let localSessions = [];      // fetched from server
   let activeLocalId = null;    // currently selected local session
   let resumedSessionId = null; // if current session is resumed from a local one
+  let availableAgents = [];     // loaded from /agents endpoint
+  let availableSkills = [];     // loaded from /skills endpoint
 
   // ── Persistence ────────────────────────────────────────────────────────────
   function save() {
@@ -586,7 +826,7 @@
   function newSession() {
     const id = 'sess_' + Date.now();
     const label = 'Session ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    sessions.unshift({ id, label, messages: [] });
+    sessions.unshift({ id, label, messages: [], agents: [], skills: [], configLocked: false });
     save();
     renderSidebar();
     selectSession(id);
@@ -611,6 +851,7 @@
     renderSidebar();
     renderLocalSessions();
     renderChat(session);
+    renderConfigBar();
   }
 
   // ── Sidebar Render ─────────────────────────────────────────────────────────
@@ -636,12 +877,16 @@
     const countEl    = document.getElementById('msg-count');
     const input      = document.getElementById('user-input');
     const sendBtn    = document.getElementById('send-btn');
+    const configBar  = document.getElementById('config-bar');
+    const configEl   = document.getElementById('session-config');
 
     if (!session) {
       titleEl.textContent = '—';
       countEl.textContent = '';
+      configEl.innerHTML = '';
       input.disabled = true;
       sendBtn.disabled = true;
+      configBar.style.display = 'none';
       messagesEl.innerHTML = `
         <div id="no-session">
           <div class="no-session-icon">◎</div>
@@ -654,7 +899,11 @@
     countEl.textContent = session.messages.length ? session.messages.length + ' msg' : '';
     input.disabled = false;
     sendBtn.disabled = false;
+    configBar.style.display = 'flex';
     input.focus();
+
+    // Show config tags in header
+    renderSessionConfigTags(session);
 
     if (session.messages.length === 0) {
       messagesEl.innerHTML = `
@@ -835,7 +1084,10 @@
     try {
       const bodyPayload = {
         message: text,
-        history: session.messages.slice(0, -1)
+        history: session.messages.slice(0, -1),
+        agents: session.agents || [],
+        skills: session.skills || [],
+        ui_session_id: session.id,
       };
 
       // If this is a resumed session and it's the first user message in this session,
@@ -846,7 +1098,7 @@
 
       const res = await fetch(streamEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify(bodyPayload)
       });
 
@@ -903,6 +1155,13 @@
 
       pingEndpoint();
 
+      // Lock config after first successful send
+      if (!session.configLocked) {
+        session.configLocked = true;
+        save();
+        renderConfigBar();
+      }
+
     } catch (err) {
       showError(err.message.includes('Failed to fetch')
         ? 'Cannot reach agent — is Flask running?'
@@ -929,7 +1188,7 @@
     const dot = document.getElementById('endpoint-dot');
     const url = document.getElementById('endpoint-url').value.trim();
     try {
-      await fetch(url.replace('/chat', '/health') , { method: 'GET', signal: AbortSignal.timeout(2000) });
+      await fetch(url.replace('/chat', '/health') , { method: 'GET', headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(2000) });
       dot.classList.add('live');
     } catch {
       dot.classList.remove('live');
@@ -967,7 +1226,7 @@
       // First trigger a fresh fetch from the CLI
       const fetchRes = await fetch(baseUrl + '/local-sessions/fetch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ limit: 50 })
       });
 
@@ -992,7 +1251,7 @@
     const baseUrl = endpoint.replace(/\/chat\/?$/, '');
 
     try {
-      const res = await fetch(baseUrl + '/local-sessions', { signal: AbortSignal.timeout(3000) });
+      const res = await fetch(baseUrl + '/local-sessions', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       localSessions = data.sessions || [];
@@ -1035,7 +1294,7 @@
     renderLocalSessions();
 
     try {
-      const res = await fetch(baseUrl + '/local-sessions/' + sessionId);
+      const res = await fetch(baseUrl + '/local-sessions/' + sessionId, { headers: { 'ngrok-skip-browser-warning': '1' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
@@ -1049,6 +1308,9 @@
         label: '📂 ' + label,
         messages,
         resumedFrom: sessionId,
+        agents: [],
+        skills: [],
+        configLocked: false,
       });
       save();
       renderSidebar();
@@ -1058,11 +1320,254 @@
     }
   }
 
+  // ── Agent & Skill Management ──────────────────────────────────────────────
+
+  async function loadAvailableAgents() {
+    const endpoint = document.getElementById('endpoint-url').value.trim();
+    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
+    try {
+      const res = await fetch(baseUrl + '/agents', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        availableAgents = data.agents || [];
+      }
+    } catch {}
+  }
+
+  async function loadAvailableSkills() {
+    const endpoint = document.getElementById('endpoint-url').value.trim();
+    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
+    try {
+      const res = await fetch(baseUrl + '/skills', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        availableSkills = data.skills || [];
+      }
+    } catch {}
+  }
+
+  function renderConfigBar() {
+    const session = getSession(activeId);
+    if (!session) return;
+    renderAgentOptions();
+    renderSkillOptions();
+    renderConfigPills();
+    updateConfigTriggers();
+    renderSessionConfigTags(session);
+  }
+
+  function renderAgentOptions() {
+    const container = document.getElementById('agent-options');
+    const session = getSession(activeId);
+    const selected = session?.agents || [];
+    const locked = session?.configLocked || false;
+
+    if (availableAgents.length === 0) {
+      container.innerHTML = '<div class="config-empty">No agents found in agents/ directory</div>';
+      return;
+    }
+
+    container.innerHTML = availableAgents.map(a => {
+      const isSelected = selected.includes(a.slug);
+      return `
+        <div class="config-option ${isSelected ? 'selected' : ''} ${locked ? 'locked' : ''}"
+             onclick="${locked ? '' : "toggleAgent('" + a.slug + "')"}">
+          <div class="config-option-check">${isSelected ? '✓' : ''}</div>
+          <div class="config-option-info">
+            <div class="config-option-name">@${escapeHtml(a.display_name || a.slug)}</div>
+            <div class="config-option-desc">${escapeHtml(a.description || '')}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderSkillOptions() {
+    const container = document.getElementById('skill-options');
+    const session = getSession(activeId);
+    const selected = session?.skills || [];
+    const locked = session?.configLocked || false;
+
+    if (availableSkills.length === 0) {
+      container.innerHTML = '<div class="config-empty">No skills found in skills/ directory</div>';
+      return;
+    }
+
+    container.innerHTML = availableSkills.map(s => {
+      const isSelected = selected.includes(s.slug);
+      return `
+        <div class="config-option ${isSelected ? 'selected' : ''} ${locked ? 'locked' : ''}"
+             onclick="${locked ? '' : "toggleSkill('" + s.slug + "')"}">
+          <div class="config-option-check">${isSelected ? '✓' : ''}</div>
+          <div class="config-option-info">
+            <div class="config-option-name">#${escapeHtml(s.name || s.slug)}</div>
+            <div class="config-option-desc">${escapeHtml(s.description || '')}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleAgent(slug) {
+    const session = getSession(activeId);
+    if (!session || session.configLocked) return;
+    if (!session.agents) session.agents = [];
+    const idx = session.agents.indexOf(slug);
+    if (idx >= 0) session.agents.splice(idx, 1);
+    else session.agents.push(slug);
+    save();
+    renderAgentOptions();
+    renderConfigPills();
+    updateConfigTriggers();
+    renderSessionConfigTags(session);
+  }
+
+  function toggleSkill(slug) {
+    const session = getSession(activeId);
+    if (!session || session.configLocked) return;
+    if (!session.skills) session.skills = [];
+    const idx = session.skills.indexOf(slug);
+    if (idx >= 0) session.skills.splice(idx, 1);
+    else session.skills.push(slug);
+    save();
+    renderSkillOptions();
+    renderConfigPills();
+    updateConfigTriggers();
+    renderSessionConfigTags(session);
+  }
+
+  function removeAgent(slug) {
+    const session = getSession(activeId);
+    if (!session || session.configLocked) return;
+    session.agents = (session.agents || []).filter(s => s !== slug);
+    save();
+    renderAgentOptions();
+    renderConfigPills();
+    updateConfigTriggers();
+    renderSessionConfigTags(session);
+  }
+
+  function removeSkill(slug) {
+    const session = getSession(activeId);
+    if (!session || session.configLocked) return;
+    session.skills = (session.skills || []).filter(s => s !== slug);
+    save();
+    renderSkillOptions();
+    renderConfigPills();
+    updateConfigTriggers();
+    renderSessionConfigTags(session);
+  }
+
+  function renderConfigPills() {
+    const container = document.getElementById('config-pills');
+    const session = getSession(activeId);
+    if (!session) { container.innerHTML = ''; return; }
+
+    const locked = session.configLocked || false;
+    const agents = session.agents || [];
+    const skills = session.skills || [];
+
+    let html = '';
+    agents.forEach(slug => {
+      const agent = availableAgents.find(a => a.slug === slug);
+      const name = agent?.display_name || slug;
+      html += `<span class="config-pill agent-pill ${locked ? 'locked' : ''}">
+        @${escapeHtml(name)}
+        <span class="pill-remove" onclick="removeAgent('${slug}')">×</span>
+      </span>`;
+    });
+    skills.forEach(slug => {
+      const skill = availableSkills.find(s => s.slug === slug);
+      const name = skill?.name || slug;
+      html += `<span class="config-pill skill-pill ${locked ? 'locked' : ''}">
+        #${escapeHtml(name)}
+        <span class="pill-remove" onclick="removeSkill('${slug}')">×</span>
+      </span>`;
+    });
+    container.innerHTML = html;
+  }
+
+  function updateConfigTriggers() {
+    const session = getSession(activeId);
+    const agents = session?.agents || [];
+    const skills = session?.skills || [];
+    const locked = session?.configLocked || false;
+
+    const agentBtn = document.querySelector('#agent-selector .config-trigger');
+    const skillBtn = document.querySelector('#skill-selector .config-trigger');
+    const agentCount = document.getElementById('agent-count');
+    const skillCount = document.getElementById('skill-count');
+
+    agentBtn.classList.toggle('active', agents.length > 0);
+    skillBtn.classList.toggle('active', skills.length > 0);
+    agentBtn.classList.toggle('locked', locked);
+    skillBtn.classList.toggle('locked', locked);
+
+    agentCount.textContent = agents.length;
+    agentCount.style.display = agents.length > 0 ? 'inline' : 'none';
+    skillCount.textContent = skills.length;
+    skillCount.style.display = skills.length > 0 ? 'inline' : 'none';
+  }
+
+  function renderSessionConfigTags(session) {
+    const configEl = document.getElementById('session-config');
+    if (!session) { configEl.innerHTML = ''; return; }
+
+    const agents = session.agents || [];
+    const skills = session.skills || [];
+
+    if (agents.length === 0 && skills.length === 0) {
+      configEl.innerHTML = '';
+      return;
+    }
+
+    let html = '';
+    agents.forEach(slug => {
+      const agent = availableAgents.find(a => a.slug === slug);
+      html += `<span class="session-config-tag agent-tag">@${escapeHtml(agent?.display_name || slug)}</span>`;
+    });
+    skills.forEach(slug => {
+      const skill = availableSkills.find(s => s.slug === slug);
+      html += `<span class="session-config-tag skill-tag">#${escapeHtml(skill?.name || slug)}</span>`;
+    });
+    configEl.innerHTML = html;
+  }
+
+  function toggleDropdown(type) {
+    const session = getSession(activeId);
+    if (session?.configLocked) return; // don't open if locked
+
+    const agentDD = document.getElementById('agent-dropdown');
+    const skillDD = document.getElementById('skill-dropdown');
+
+    if (type === 'agent') {
+      const isOpen = agentDD.classList.contains('show');
+      agentDD.classList.toggle('show', !isOpen);
+      skillDD.classList.remove('show');
+      if (!isOpen) renderAgentOptions();
+    } else {
+      const isOpen = skillDD.classList.contains('show');
+      skillDD.classList.toggle('show', !isOpen);
+      agentDD.classList.remove('show');
+      if (!isOpen) renderSkillOptions();
+    }
+  }
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#agent-selector')) {
+      document.getElementById('agent-dropdown').classList.remove('show');
+    }
+    if (!e.target.closest('#skill-selector')) {
+      document.getElementById('skill-dropdown').classList.remove('show');
+    }
+  });
+
   // ── Init ───────────────────────────────────────────────────────────────────
   renderSidebar();
   renderChat(null);
   pingEndpoint();
   loadLocalSessionsList(true); // silently load any already-fetched local sessions
+  loadAvailableAgents();       // load agents from /agents endpoint
+  loadAvailableSkills();       // load skills from /skills endpoint
   setInterval(pingEndpoint, 30000); // ping every 30s
 </script>
 </body>

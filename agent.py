@@ -11,6 +11,11 @@ import queue
 from copilot import CopilotClient
 from copilot.generated.session_events import SessionEventType
 
+
+def _approve_all_permissions(request, context):
+    """Auto-approve every tool permission request (shell, write, read, url, mcp)."""
+    return {"kind": "approved"}
+
 # Persistent event loop running in a background thread
 _loop: asyncio.AbstractEventLoop | None = None
 _loop_thread: threading.Thread | None = None
@@ -26,6 +31,10 @@ WORKSPACE_DIR = os.environ.get("COPILOT_WORKSPACE", _DEFAULT_WORKSPACE)
 # Ensure the workspace folder exists
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
+# Directories for custom agents and skills
+AGENTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agents")
+SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
+
 # System message that instructs the agent about workspace behavior
 SYSTEM_MESSAGE = f"""You are a helpful coding assistant.
 
@@ -33,6 +42,57 @@ Default workspace: {WORKSPACE_DIR}
 
 IMPORTANT: By default, ALL file operations (create, read, write, delete, list) MUST happen inside the workspace folder above. Always use absolute paths starting with {WORKSPACE_DIR} when creating or accessing files. If the user explicitly asks to work in a different folder, use that folder instead.
 """
+
+
+def load_agents() -> list[dict]:
+    """Load custom agent configurations from the agents/ directory."""
+    agents = []
+    if not os.path.isdir(AGENTS_DIR):
+        return agents
+    for filename in sorted(os.listdir(AGENTS_DIR)):
+        if filename.endswith('.json'):
+            filepath = os.path.join(AGENTS_DIR, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    agent = json.load(f)
+                    if 'slug' in agent:
+                        agents.append(agent)
+            except (json.JSONDecodeError, IOError):
+                pass
+    return agents
+
+
+def list_skill_directories() -> list[dict]:
+    """List available skills from the skills/ directory."""
+    skills = []
+    if not os.path.isdir(SKILLS_DIR):
+        return skills
+    for dirname in sorted(os.listdir(SKILLS_DIR)):
+        skill_dir = os.path.join(SKILLS_DIR, dirname)
+        skill_file = os.path.join(skill_dir, "SKILL.md")
+        if os.path.isdir(skill_dir) and os.path.isfile(skill_file):
+            name = dirname
+            description = ""
+            try:
+                with open(skill_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if content.startswith('---'):
+                    parts = content.split('---', 2)
+                    if len(parts) >= 3:
+                        for line in parts[1].strip().split('\n'):
+                            if line.startswith('name:'):
+                                name = line.split(':', 1)[1].strip()
+                            elif line.startswith('description:'):
+                                description = line.split(':', 1)[1].strip()
+            except IOError:
+                pass
+            skills.append({
+                "slug": dirname,
+                "name": name,
+                "description": description,
+                "directory": skill_dir,
+            })
+    return skills
 
 
 def _start_background_loop():
@@ -74,17 +134,40 @@ async def _ensure_client() -> CopilotClient:
     return _client
 
 
-async def _get_or_create_session(client: CopilotClient, conversation_key: str):
+async def _get_or_create_session(
+    client: CopilotClient, conversation_key: str,
+    agent_slugs: list[str] | None = None,
+    skill_slugs: list[str] | None = None,
+):
     """Get existing session or create a new one for this conversation."""
     global _sessions
     if conversation_key not in _sessions:
-        session = await client.create_session({
+        config: dict = {
             "model": "gpt-4.1",
             "streaming": True,
+            "on_permission_request": _approve_all_permissions,
             "system_message": {
                 "content": SYSTEM_MESSAGE,
             },
-        })
+        }
+
+        # Add custom agents if selected
+        if agent_slugs:
+            all_agents = load_agents()
+            selected_agents = [a for a in all_agents if a["slug"] in agent_slugs]
+            if selected_agents:
+                config["custom_agents"] = selected_agents
+
+        # Add skill directories if selected
+        if skill_slugs:
+            all_skills = list_skill_directories()
+            all_skill_slugs = [s["slug"] for s in all_skills]
+            config["skill_directories"] = [SKILLS_DIR]
+            disabled = [s for s in all_skill_slugs if s not in skill_slugs]
+            if disabled:
+                config["disabled_skills"] = disabled
+
+        session = await client.create_session(config)
         _sessions[conversation_key] = session
     return _sessions[conversation_key]
 
@@ -99,6 +182,7 @@ async def _get_or_resume_session(client: CopilotClient, session_id: str):
     if session_id not in _resumed_sdk_sessions:
         session = await client.resume_session(session_id, {
             "streaming": True,
+            "on_permission_request": _approve_all_permissions,
         })
         _resumed_sdk_sessions[session_id] = session
     return _resumed_sdk_sessions[session_id]
@@ -107,6 +191,9 @@ async def _get_or_resume_session(client: CopilotClient, session_id: str):
 async def _ask_agent_streaming_async(
     message: str, history: list, event_queue: queue.Queue,
     resumed_session_id: str | None = None,
+    agent_slugs: list[str] | None = None,
+    skill_slugs: list[str] | None = None,
+    ui_session_id: str | None = None,
 ):
     """
     Async implementation that streams events via a queue.
@@ -116,13 +203,16 @@ async def _ask_agent_streaming_async(
         history : list of previous turns
         event_queue : queue to push events to
         resumed_session_id : if set, resume this Copilot CLI session via the SDK
+        agent_slugs : list of agent slugs to enable as sub-agents
+        skill_slugs : list of skill slugs to load
+        ui_session_id : UI session ID for stable session caching
     """
     client = await _ensure_client()
     if resumed_session_id:
         session = await _get_or_resume_session(client, resumed_session_id)
     else:
-        conversation_key = _get_conversation_key(history)
-        session = await _get_or_create_session(client, conversation_key)
+        conversation_key = ui_session_id or _get_conversation_key(history)
+        session = await _get_or_create_session(client, conversation_key, agent_slugs, skill_slugs)
     
     content_parts = []
     
@@ -170,6 +260,9 @@ async def _ask_agent_streaming_async(
 
 async def _ask_agent_async(
     message: str, history: list, resumed_session_id: str | None = None,
+    agent_slugs: list[str] | None = None,
+    skill_slugs: list[str] | None = None,
+    ui_session_id: str | None = None,
 ) -> str:
     """
     Async implementation that uses the Copilot SDK.
@@ -178,6 +271,9 @@ async def _ask_agent_async(
         message : the latest user message
         history : list of previous turns [{"role": "user"|"agent", "text": "..."}]
         resumed_session_id : if set, resume this Copilot CLI session via the SDK
+        agent_slugs : list of agent slugs to enable as sub-agents
+        skill_slugs : list of skill slugs to load
+        ui_session_id : UI session ID for stable session caching
 
     Returns:
         Agent's reply as a string
@@ -187,8 +283,8 @@ async def _ask_agent_async(
     if resumed_session_id:
         session = await _get_or_resume_session(client, resumed_session_id)
     else:
-        conversation_key = _get_conversation_key(history)
-        session = await _get_or_create_session(client, conversation_key)
+        conversation_key = ui_session_id or _get_conversation_key(history)
+        session = await _get_or_create_session(client, conversation_key, agent_slugs, skill_slugs)
     
     # Send the current message - session automatically maintains context
     response = await session.send_and_wait({"prompt": message})
@@ -196,7 +292,12 @@ async def _ask_agent_async(
     return response.data.content if response and response.data else ""
 
 
-def ask_agent_streaming(message: str, history: list, resumed_session_id: str | None = None):
+def ask_agent_streaming(
+    message: str, history: list, resumed_session_id: str | None = None,
+    agent_slugs: list[str] | None = None,
+    skill_slugs: list[str] | None = None,
+    ui_session_id: str | None = None,
+):
     """
     Generator that yields streaming events from the agent.
     
@@ -208,7 +309,10 @@ def ask_agent_streaming(message: str, history: list, resumed_session_id: str | N
     
     # Start the async task
     future = asyncio.run_coroutine_threadsafe(
-        _ask_agent_streaming_async(message, history, event_queue, resumed_session_id),
+        _ask_agent_streaming_async(
+            message, history, event_queue, resumed_session_id,
+            agent_slugs, skill_slugs, ui_session_id,
+        ),
         loop
     )
     
@@ -229,7 +333,12 @@ def ask_agent_streaming(message: str, history: list, resumed_session_id: str | N
                 break
 
 
-def ask_agent(message: str, history: list, resumed_session_id: str | None = None) -> str:
+def ask_agent(
+    message: str, history: list, resumed_session_id: str | None = None,
+    agent_slugs: list[str] | None = None,
+    skill_slugs: list[str] | None = None,
+    ui_session_id: str | None = None,
+) -> str:
     """
     Synchronous wrapper for the async Copilot SDK call.
     
@@ -237,12 +346,18 @@ def ask_agent(message: str, history: list, resumed_session_id: str | None = None
         message : the latest user message
         history : list of previous turns [{"role": "user"|"agent", "text": "..."}]
         resumed_session_id : if set, resume this Copilot CLI session via the SDK
+        agent_slugs : list of agent slugs to enable as sub-agents
+        skill_slugs : list of skill slugs to load
+        ui_session_id : UI session ID for stable session caching
 
     Returns:
         Agent's reply as a string
     """
     loop = _ensure_loop()
     future = asyncio.run_coroutine_threadsafe(
-        _ask_agent_async(message, history, resumed_session_id), loop
+        _ask_agent_async(
+            message, history, resumed_session_id,
+            agent_slugs, skill_slugs, ui_session_id,
+        ), loop
     )
     return future.result(timeout=120)  # 2 minute timeout

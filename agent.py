@@ -16,6 +16,7 @@ _loop: asyncio.AbstractEventLoop | None = None
 _loop_thread: threading.Thread | None = None
 _client: CopilotClient | None = None
 _sessions: dict[str, object] = {}  # session cache keyed by conversation hash
+_resumed_sdk_sessions: dict[str, object] = {}  # sessions resumed via client.resume_session()
 _lock = threading.Lock()
 
 # Working directory for file operations - defaults to pilot_folder subdirectory
@@ -88,7 +89,25 @@ async def _get_or_create_session(client: CopilotClient, conversation_key: str):
     return _sessions[conversation_key]
 
 
-async def _ask_agent_streaming_async(message: str, history: list, event_queue: queue.Queue):
+async def _get_or_resume_session(client: CopilotClient, session_id: str):
+    """
+    Resume an existing Copilot CLI session by ID using the SDK's built-in
+    resume_session(). The SDK restores the full conversation history internally;
+    no need to re-inject messages manually.
+    """
+    global _resumed_sdk_sessions
+    if session_id not in _resumed_sdk_sessions:
+        session = await client.resume_session(session_id, {
+            "streaming": True,
+        })
+        _resumed_sdk_sessions[session_id] = session
+    return _resumed_sdk_sessions[session_id]
+
+
+async def _ask_agent_streaming_async(
+    message: str, history: list, event_queue: queue.Queue,
+    resumed_session_id: str | None = None,
+):
     """
     Async implementation that streams events via a queue.
     
@@ -96,10 +115,14 @@ async def _ask_agent_streaming_async(message: str, history: list, event_queue: q
         message : the latest user message
         history : list of previous turns
         event_queue : queue to push events to
+        resumed_session_id : if set, resume this Copilot CLI session via the SDK
     """
     client = await _ensure_client()
-    conversation_key = _get_conversation_key(history)
-    session = await _get_or_create_session(client, conversation_key)
+    if resumed_session_id:
+        session = await _get_or_resume_session(client, resumed_session_id)
+    else:
+        conversation_key = _get_conversation_key(history)
+        session = await _get_or_create_session(client, conversation_key)
     
     content_parts = []
     
@@ -145,22 +168,27 @@ async def _ask_agent_streaming_async(message: str, history: list, event_queue: q
     await session.send_and_wait({"prompt": message})
 
 
-async def _ask_agent_async(message: str, history: list) -> str:
+async def _ask_agent_async(
+    message: str, history: list, resumed_session_id: str | None = None,
+) -> str:
     """
     Async implementation that uses the Copilot SDK.
     
     Args:
         message : the latest user message
         history : list of previous turns [{"role": "user"|"agent", "text": "..."}]
+        resumed_session_id : if set, resume this Copilot CLI session via the SDK
 
     Returns:
         Agent's reply as a string
     """
     client = await _ensure_client()
     
-    # Get or create a session for this conversation
-    conversation_key = _get_conversation_key(history)
-    session = await _get_or_create_session(client, conversation_key)
+    if resumed_session_id:
+        session = await _get_or_resume_session(client, resumed_session_id)
+    else:
+        conversation_key = _get_conversation_key(history)
+        session = await _get_or_create_session(client, conversation_key)
     
     # Send the current message - session automatically maintains context
     response = await session.send_and_wait({"prompt": message})
@@ -168,7 +196,7 @@ async def _ask_agent_async(message: str, history: list) -> str:
     return response.data.content if response and response.data else ""
 
 
-def ask_agent_streaming(message: str, history: list):
+def ask_agent_streaming(message: str, history: list, resumed_session_id: str | None = None):
     """
     Generator that yields streaming events from the agent.
     
@@ -180,7 +208,7 @@ def ask_agent_streaming(message: str, history: list):
     
     # Start the async task
     future = asyncio.run_coroutine_threadsafe(
-        _ask_agent_streaming_async(message, history, event_queue),
+        _ask_agent_streaming_async(message, history, event_queue, resumed_session_id),
         loop
     )
     
@@ -201,17 +229,20 @@ def ask_agent_streaming(message: str, history: list):
                 break
 
 
-def ask_agent(message: str, history: list) -> str:
+def ask_agent(message: str, history: list, resumed_session_id: str | None = None) -> str:
     """
     Synchronous wrapper for the async Copilot SDK call.
     
     Args:
         message : the latest user message
         history : list of previous turns [{"role": "user"|"agent", "text": "..."}]
+        resumed_session_id : if set, resume this Copilot CLI session via the SDK
 
     Returns:
         Agent's reply as a string
     """
     loop = _ensure_loop()
-    future = asyncio.run_coroutine_threadsafe(_ask_agent_async(message, history), loop)
+    future = asyncio.run_coroutine_threadsafe(
+        _ask_agent_async(message, history, resumed_session_id), loop
+    )
     return future.result(timeout=120)  # 2 minute timeout

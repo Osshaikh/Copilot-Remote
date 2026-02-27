@@ -75,6 +75,84 @@
   #new-session-btn:hover { background: #d9ff3f; }
   #new-session-btn:active { transform: scale(.97); }
 
+  #fetch-local-btn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .15s, transform .1s, color .15s;
+  }
+  #fetch-local-btn:hover { background: rgba(200,241,53,.1); }
+  #fetch-local-btn:active { transform: scale(.97); }
+  #fetch-local-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Sidebar section dividers */
+  .sidebar-section-label {
+    padding: 10px 16px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Local session items */
+  .local-session-item {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background .12s, border-color .12s;
+  }
+  .local-session-item:hover { background: rgba(255,255,255,.03); }
+  .local-session-item.active {
+    background: rgba(200,241,53,.06);
+    border-left-color: var(--accent);
+  }
+
+  .local-session-summary {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    transition: color .12s;
+  }
+  .local-session-item.active .local-session-summary { color: var(--text); }
+
+  .local-session-meta {
+    font-size: 10px;
+    color: var(--muted);
+    opacity: .6;
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+
+  /* Resumed session banner */
+  .resumed-banner {
+    padding: 10px 24px;
+    background: rgba(200,241,53,.06);
+    border-bottom: 1px solid rgba(200,241,53,.15);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--accent-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .resumed-banner .banner-icon { font-size: 14px; }
+  .resumed-banner .banner-text { flex: 1; }
+
   #sessions-list { flex: 1; overflow-y: auto; padding: 8px 0; }
   #sessions-list::-webkit-scrollbar { width: 4px; }
   #sessions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -448,14 +526,19 @@
     <div id="sidebar-header">
       <div class="logo">Agent<span>/chat</span></div>
       <button id="new-session-btn" onclick="newSession()">+ New Session</button>
+      <button id="fetch-local-btn" onclick="fetchLocalSessions()">↓ Fetch Local Sessions</button>
     </div>
     <div id="sessions-list"></div>
+    <div id="local-sessions-container" style="display:none; border-top: 1px solid var(--border); flex-shrink: 0; max-height: 50%; overflow-y: auto;">
+      <div class="sidebar-section-label">Local Copilot Sessions</div>
+      <div id="local-sessions-list"></div>
+    </div>
     <div id="sidebar-footer">
       <div class="endpoint-badge">
         <div class="endpoint-dot" id="endpoint-dot"></div>
         <span>agent endpoint</span>
       </div>
-      <input id="endpoint-url" type="text" value="https://lyle-unhectored-myron.ngrok-free.dev/chat" spellcheck="false" title="Edit agent endpoint URL" />
+      <input id="endpoint-url" type="text" value="http://localhost:5000/chat" spellcheck="false" title="Edit agent endpoint URL" />
     </div>
   </aside>
 
@@ -486,6 +569,9 @@
   // ── State ──────────────────────────────────────────────────────────────────
   let sessions = JSON.parse(localStorage.getItem('agent_sessions') || '[]');
   let activeId = null;
+  let localSessions = [];      // fetched from server
+  let activeLocalId = null;    // currently selected local session
+  let resumedSessionId = null; // if current session is resumed from a local one
 
   // ── Persistence ────────────────────────────────────────────────────────────
   function save() {
@@ -519,8 +605,12 @@
 
   function selectSession(id) {
     activeId = id;
+    activeLocalId = null; // deselect local sidebar
+    const session = getSession(id);
+    resumedSessionId = session?.resumedFrom || null;
     renderSidebar();
-    renderChat(getSession(id));
+    renderLocalSessions();
+    renderChat(session);
   }
 
   // ── Sidebar Render ─────────────────────────────────────────────────────────
@@ -576,7 +666,17 @@
       return;
     }
 
-    messagesEl.innerHTML = session.messages.map(m => msgHTML(m)).join('');
+    // Show resumed banner if this session was loaded from a local session
+    let bannerHTML = '';
+    if (session.resumedFrom) {
+      bannerHTML = `
+        <div class="resumed-banner">
+          <span class="banner-icon">📂</span>
+          <span class="banner-text">Resumed from local Copilot session. Send a message to continue the conversation.</span>
+        </div>`;
+    }
+
+    messagesEl.innerHTML = bannerHTML + session.messages.map(m => msgHTML(m)).join('');
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
@@ -733,13 +833,21 @@
     appendMessage('user', text);
 
     try {
+      const bodyPayload = {
+        message: text,
+        history: session.messages.slice(0, -1)
+      };
+
+      // If this is a resumed session and it's the first user message in this session,
+      // tell the backend to preload the local session history
+      if (session.resumedFrom) {
+        bodyPayload.resumed_session_id = session.resumedFrom;
+      }
+
       const res = await fetch(streamEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: session.messages.slice(0, -1)
-        })
+        body: JSON.stringify(bodyPayload)
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -845,10 +953,116 @@
   // Re-ping when endpoint URL is edited
   document.getElementById('endpoint-url').addEventListener('change', pingEndpoint);
 
+  // ── Local Sessions ─────────────────────────────────────────────────────────
+
+  async function fetchLocalSessions() {
+    const btn = document.getElementById('fetch-local-btn');
+    const endpoint = document.getElementById('endpoint-url').value.trim();
+    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ FETCHING...';
+
+    try {
+      // First trigger a fresh fetch from the CLI
+      const fetchRes = await fetch(baseUrl + '/local-sessions/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 50 })
+      });
+
+      if (!fetchRes.ok) throw new Error(`Fetch failed: HTTP ${fetchRes.status}`);
+      const fetchResult = await fetchRes.json();
+
+      // Now load the list
+      await loadLocalSessionsList();
+
+      btn.textContent = `↓ FETCHED ${fetchResult.fetched || 0} SESSIONS`;
+      setTimeout(() => { btn.textContent = '↓ Fetch Local Sessions'; }, 3000);
+    } catch (err) {
+      showError('Failed to fetch local sessions: ' + err.message);
+      btn.textContent = '↓ Fetch Local Sessions';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadLocalSessionsList(silent = false) {
+    const endpoint = document.getElementById('endpoint-url').value.trim();
+    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
+
+    try {
+      const res = await fetch(baseUrl + '/local-sessions', { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      localSessions = data.sessions || [];
+      renderLocalSessions();
+    } catch (err) {
+      if (!silent) showError('Failed to load local sessions: ' + err.message);
+    }
+  }
+
+  function renderLocalSessions() {
+    const container = document.getElementById('local-sessions-container');
+    const list = document.getElementById('local-sessions-list');
+
+    if (localSessions.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+
+    list.innerHTML = localSessions.map(s => {
+      const summary = s.summary || 'Untitled session';
+      const time = s.startTimeLocal || '';
+      const repo = s.repository ? `• ${s.repository}` : '';
+      return `
+        <div class="local-session-item ${s.sessionId === activeLocalId ? 'active' : ''}"
+             onclick="selectLocalSession('${s.sessionId}')"
+             title="${escapeHtml(summary)}">
+          <div class="local-session-summary">${escapeHtml(summary)}</div>
+          <div class="local-session-meta">${time} ${repo}</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function selectLocalSession(sessionId) {
+    const endpoint = document.getElementById('endpoint-url').value.trim();
+    const baseUrl = endpoint.replace(/\/chat\/?$/, '');
+
+    activeLocalId = sessionId;
+    renderLocalSessions();
+
+    try {
+      const res = await fetch(baseUrl + '/local-sessions/' + sessionId);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Create a new local UI session from this
+      const id = 'local_' + sessionId.slice(0, 8) + '_' + Date.now();
+      const label = data.summary || 'Local Session';
+      const messages = data.messages || [];
+
+      sessions.unshift({
+        id,
+        label: '📂 ' + label,
+        messages,
+        resumedFrom: sessionId,
+      });
+      save();
+      renderSidebar();
+      selectSession(id);
+    } catch (err) {
+      showError('Failed to load session: ' + err.message);
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
   renderSidebar();
   renderChat(null);
   pingEndpoint();
+  loadLocalSessionsList(true); // silently load any already-fetched local sessions
   setInterval(pingEndpoint, 30000); // ping every 30s
 </script>
 </body>

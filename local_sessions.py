@@ -1,29 +1,30 @@
 """
-local_sessions.py — Fetch and read local Copilot CLI sessions.
+local_sessions.py — Fetch and browse Copilot CLI sessions (fully in-memory).
 
-Adapted from copilot_session_fetch.py.
-Provides functions to:
-  1. Trigger a fetch of sessions from the Copilot CLI into data/
-  2. List already-fetched sessions with summaries
-  3. Read a full session and parse it into chat messages
+Uses the same Copilot SDK RPCs as copilot_session_fetch.py but keeps
+everything in memory — no data/ folder required.
+
+Flow:
+  1. User clicks "Fetch Local Sessions"  →  fetch_sessions_sync()
+     - Talks to the Copilot CLI via session.list + session.getMessages RPCs
+     - Stores session metadata + events in _session_store
+  2. list_local_sessions()  →  returns summaries from _session_store
+  3. get_session_messages(id) → parses events from _session_store into chat msgs
 """
 
 import asyncio
-import json
 import os
 import threading
 from datetime import datetime
 from copilot import CopilotClient
 
-# Output directory (relative to this module)
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
-
 _fetch_lock = threading.Lock()
 
-
-def ensure_dirs():
-    os.makedirs(SESSIONS_DIR, exist_ok=True)
+# ── In-memory store ───────────────────────────────────────────────────────────
+# _session_index: list of session metadata dicts (from session.list)
+# _session_events: dict mapping sessionId → full session dict (metadata + events)
+_session_index: list = []
+_session_events: dict[str, dict] = {}
 
 
 def parse_time(iso_str: str) -> str:
@@ -36,16 +37,14 @@ def parse_time(iso_str: str) -> str:
         return iso_str
 
 
-def dump_json(path: str, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, default=str, ensure_ascii=False)
-
-
-# ── Async fetch logic ────────────────────────────────────────────────────────
+# ── Async fetch logic (talks to Copilot CLI) ─────────────────────────────────
 
 async def _fetch_sessions_from_cli(limit: int = 50) -> dict:
-    """Fetch sessions from the Copilot CLI and save to data/."""
-    ensure_dirs()
+    """
+    Fetch sessions from the Copilot CLI and store in memory.
+    Same RPCs as copilot_session_fetch.py: session.list + session.getMessages.
+    """
+    global _session_index, _session_events
 
     github_token = (
         os.environ.get("COPILOT_GITHUB_TOKEN")
@@ -64,6 +63,7 @@ async def _fetch_sessions_from_cli(limit: int = 50) -> dict:
     await client.start()
 
     try:
+        # ── session.list RPC ──────────────────────────────────
         response = await client._client.request("session.list", {})
         sessions = response if isinstance(response, list) else response.get("sessions", [])
         sessions.sort(key=lambda s: s.get("startTime", ""), reverse=True)
@@ -71,11 +71,10 @@ async def _fetch_sessions_from_cli(limit: int = 50) -> dict:
         total = len(sessions)
         display = sessions[:limit]
 
-        # Write sessions.json
-        sessions_path = os.path.join(DATA_DIR, "sessions.json")
-        dump_json(sessions_path, display)
+        # Store index in memory
+        _session_index = display
 
-        # Fetch individual session events
+        # ── Fetch events for each session ─────────────────────
         fetched = 0
         for s in display:
             sid = s.get("sessionId", "unknown")
@@ -88,9 +87,7 @@ async def _fetch_sessions_from_cli(limit: int = 50) -> dict:
             except Exception:
                 events = []
 
-            session_data = {**s, "events": events}
-            out_path = os.path.join(SESSIONS_DIR, f"{sid}.json")
-            dump_json(out_path, session_data)
+            _session_events[sid] = {**s, "events": events}
             fetched += 1
 
         return {
@@ -112,24 +109,16 @@ def fetch_sessions_sync(limit: int = 50) -> dict:
             loop.close()
 
 
-# ── Read already-fetched sessions ─────────────────────────────────────────────
+# ── Read from in-memory store ─────────────────────────────────────────────────
 
 def list_local_sessions() -> list:
     """
-    Read data/sessions.json and return session metadata list.
-    Each item has: sessionId, summary, startTime, modifiedTime, context.
+    Return session metadata from the in-memory store.
+    Returns an empty list if fetch hasn't been called yet.
     """
-    sessions_path = os.path.join(DATA_DIR, "sessions.json")
-    if not os.path.exists(sessions_path):
-        return []
-
-    with open(sessions_path, "r", encoding="utf-8") as f:
-        sessions = json.load(f)
-
     result = []
-    for s in sessions:
+    for s in _session_index:
         summary = s.get("summary", "")
-        # Truncate very long summaries (some are full system prompts)
         if len(summary) > 120:
             summary = summary[:117] + "..."
 
@@ -148,9 +137,9 @@ def list_local_sessions() -> list:
     return result
 
 
-def get_session_messages(session_id: str) -> dict:
+def get_session_messages(session_id: str) -> dict | None:
     """
-    Read a full session file and parse events into a chat message list.
+    Parse events from the in-memory store into a chat message list.
 
     Returns:
         {
@@ -159,13 +148,11 @@ def get_session_messages(session_id: str) -> dict:
             "messages": [{"role": "user"|"agent", "text": "..."}],
             "metadata": {...}
         }
+        or None if session_id hasn't been fetched.
     """
-    session_path = os.path.join(SESSIONS_DIR, f"{session_id}.json")
-    if not os.path.exists(session_path):
+    data = _session_events.get(session_id)
+    if data is None:
         return None
-
-    with open(session_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
 
     messages = []
     current_assistant_parts = []

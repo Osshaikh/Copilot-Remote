@@ -387,7 +387,7 @@
   }
   .cfg-trigger:hover  { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
   .cfg-trigger.active { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
-  .cfg-trigger.locked { opacity: .4; cursor: default; }
+
 
   .cfg-count {
     background: var(--blue); color: #fff;
@@ -419,7 +419,7 @@
   }
   .cfg-opt:hover  { background: rgba(255,255,255,.04); }
   .cfg-opt.sel    { background: var(--blue-glow); }
-  .cfg-opt.locked { opacity: .4; cursor: default; }
+
 
   .cfg-chk {
     width: 15px; height: 15px; border: 1.5px solid var(--border-2); border-radius: 3px;
@@ -445,7 +445,7 @@
   .cfg-pill.mcp   { background: rgba(236,153,75,.1);  border: 1px solid rgba(236,153,75,.25); color: #ec994b; }
   .cfg-pill .px { opacity: .5; cursor: pointer; font-size: 13px; transition: opacity .12s; }
   .cfg-pill .px:hover { opacity: 1; }
-  .cfg-pill.locked .px { display: none; }
+
 
   #input-wrap {
     display: flex; align-items: flex-end; gap: 9px;
@@ -674,7 +674,7 @@ function closeSidebar() {
 function newSession() {
   const id    = 'sess_' + Date.now();
   const label = 'Session ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-  sessions.unshift({ id, label, messages: [], skills: [], mcps: [], configLocked: false });
+  sessions.unshift({ id, label, messages: [], skills: [], mcps: [] });
   save(); renderSidebar(); selectSession(id);
 }
 
@@ -964,8 +964,6 @@ async function sendMessage() {
       ? 'Cannot reach agent — is Flask running?'
       : 'Error: ' + err.message);
   } finally {
-    // Lock skills & MCPs after the first message
-    if (s && !s.configLocked) { s.configLocked = true; save(); updateTriggers(); renderPills(); }
     sendBtn.disabled = false; input.disabled = false;
     if (!isTouch()) input.focus();
   }
@@ -1078,7 +1076,7 @@ async function selectLocalSession(id) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     const sid = 'local_' + id.slice(0,8) + '_' + Date.now();
-    sessions.unshift({ id: sid, label: '📂 ' + (d.summary||'Local Session'), messages: d.messages||[], resumedFrom: id, skills:[], mcps:[], configLocked: false });
+    sessions.unshift({ id: sid, label: '📂 ' + (d.summary||'Local Session'), messages: d.messages||[], resumedFrom: id, skills:[], mcps:[] });
     save(); renderSidebar(); selectSession(sid);
   } catch (err) { showError('Failed: ' + err.message); }
 }
@@ -1120,12 +1118,12 @@ function renderHeaderConfig(s) {
 }
 
 function renderSkillOpts() {
-  const s = getSess(activeId), sel = s?.skills||[], locked = s?.configLocked||false;
+  const s = getSess(activeId), sel = s?.skills||[];
   const el = document.getElementById('skill-opts');
   if (!availableSkills.length) { el.innerHTML = '<div class="cfg-empty">No skills found</div>'; return; }
   el.innerHTML = availableSkills.map(sk => {
     const on = sel.includes(sk.slug);
-    return `<div class="cfg-opt ${on?'sel':''} ${locked?'locked':''}" onclick="${locked?'':` toggleSkill('${sk.slug}')`}">
+    return `<div class="cfg-opt ${on?'sel':''}" onclick="toggleSkill('${sk.slug}')">
       <div class="cfg-chk">${on?'✓':''}</div>
       <div class="cfg-info"><div class="cfg-name">#${esc(sk.name||sk.slug)}</div><div class="cfg-desc">${esc(sk.description||'')}</div></div>
     </div>`;
@@ -1133,37 +1131,37 @@ function renderSkillOpts() {
 }
 
 function toggleSkill(slug) {
-  const s = getSess(activeId); if (!s||s.configLocked) return;
+  const s = getSess(activeId); if (!s) return;
   if (!s.skills) s.skills = [];
   const i = s.skills.indexOf(slug); if (i>=0) s.skills.splice(i,1); else s.skills.push(slug);
   save(); renderSkillOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
 function removeSkill(slug) {
-  const s = getSess(activeId); if (!s||s.configLocked) return;
+  const s = getSess(activeId); if (!s) return;
   s.skills = (s.skills||[]).filter(x=>x!==slug);
   save(); renderSkillOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
 
 function renderMcpOpts() {
-  const s = getSess(activeId), sel = s?.mcps||[], locked = s?.configLocked||false;
+  const s = getSess(activeId), sel = s?.mcps||[];
   const el = document.getElementById('mcp-opts');
   if (!availableMcps.length) { el.innerHTML = '<div class="cfg-empty">No MCP servers found</div>'; return; }
   el.innerHTML = availableMcps.map(m => {
     const on = sel.includes(m.slug);
-    return `<div class="cfg-opt ${on?'sel':''} ${locked?'locked':''}" onclick="${locked?'':` toggleMcp('${m.slug}')`}">
+    return `<div class="cfg-opt ${on?'sel':''}" onclick="toggleMcp('${m.slug}')">
       <div class="cfg-chk">${on?'✓':''}</div>
       <div class="cfg-info"><div class="cfg-name">⚡ ${esc(m.name||m.slug)}</div><div class="cfg-desc">${esc(m.description||'')}</div></div>
     </div>`;
   }).join('');
 }
 function toggleMcp(slug) {
-  const s = getSess(activeId); if (!s||s.configLocked) return;
+  const s = getSess(activeId); if (!s) return;
   if (!s.mcps) s.mcps = [];
   const i = s.mcps.indexOf(slug); if (i>=0) s.mcps.splice(i,1); else s.mcps.push(slug);
   save(); renderMcpOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
 function removeMcp(slug) {
-  const s = getSess(activeId); if (!s||s.configLocked) return;
+  const s = getSess(activeId); if (!s) return;
   s.mcps = (s.mcps||[]).filter(x=>x!==slug);
   save(); renderMcpOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
@@ -1171,28 +1169,26 @@ function removeMcp(slug) {
 function renderPills() {
   const s = getSess(activeId); const el = document.getElementById('cfg-pills');
   if (!s) { el.innerHTML = ''; return; }
-  const locked = s.configLocked||false;
   let html = '';
   (s.skills||[]).forEach(slug => {
     const sk = availableSkills.find(x=>x.slug===slug);
-    html += `<span class="cfg-pill skill ${locked?'locked':''}">#${esc(sk?.name||slug)}<span class="px" onclick="removeSkill('${slug}')">×</span></span>`;
+    html += `<span class="cfg-pill skill">#${esc(sk?.name||slug)}<span class="px" onclick="removeSkill('${slug}')">×</span></span>`;
   });
   (s.mcps||[]).forEach(slug => {
     const m = availableMcps.find(x=>x.slug===slug);
-    html += `<span class="cfg-pill mcp ${locked?'locked':''}">⚡${esc(m?.name||slug)}<span class="px" onclick="removeMcp('${slug}')">×</span></span>`;
+    html += `<span class="cfg-pill mcp">⚡${esc(m?.name||slug)}<span class="px" onclick="removeMcp('${slug}')">×</span></span>`;
   });
   el.innerHTML = html;
 }
 
 function updateTriggers() {
   const s = getSess(activeId);
-  const skills = s?.skills||[], mcps = s?.mcps||[], locked = s?.configLocked||false;
+  const skills = s?.skills||[], mcps = s?.mcps||[];
   const sb = document.querySelector('#skill-sel .cfg-trigger');
   const mb = document.querySelector('#mcp-sel .cfg-trigger');
   sb.classList.toggle('active', skills.length>0);
   mb.classList.toggle('active', mcps.length>0);
-  sb.classList.toggle('locked', locked);
-  mb.classList.toggle('locked', locked);
+
   const sc = document.getElementById('skill-count');
   const mc = document.getElementById('mcp-count');
   sc.textContent = skills.length; sc.style.display = skills.length ? 'inline':'none';
@@ -1200,8 +1196,6 @@ function updateTriggers() {
 }
 
 function toggleDD(type) {
-  const s = getSess(activeId);
-  if (s?.configLocked) return; // skills/MCPs locked after first message
   const sdd = document.getElementById('skill-dd');
   const mdd = document.getElementById('mcp-dd');
   if (type === 'skill') {

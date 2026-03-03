@@ -24,6 +24,7 @@ _sessions: dict[str, object] = {}  # session cache keyed by conversation hash
 _resumed_sdk_sessions: dict[str, object] = {}  # sessions resumed via client.resume_session()
 _copilot_id_to_session: dict[str, object] = {}  # copilot session_id → SDK session (covers both created & resumed)
 _active_unsubscribers: dict[int, callable] = {}  # id(session) → unsubscribe fn, prevents duplicate handlers
+_session_config_cache: dict[str, tuple] = {}  # key → (sorted skill_slugs, sorted mcp_slugs) last used
 _lock = threading.Lock()
 
 # Working directory for file operations - defaults to pilot_folder subdirectory
@@ -190,23 +191,75 @@ def _build_session_config(
     return config
 
 
+def _config_fingerprint(
+    skill_slugs: list[str] | None = None,
+    mcp_slugs: list[str] | None = None,
+) -> tuple:
+    """Return a hashable fingerprint of the current skill/MCP config."""
+    return (
+        tuple(sorted(skill_slugs)) if skill_slugs else (),
+        tuple(sorted(mcp_slugs)) if mcp_slugs else (),
+    )
+
+
+async def _destroy_old_session(old_session) -> None:
+    """Soft-destroy an old SDK session before re-resuming.
+
+    This tells the server to release its observer for this session so that
+    the subsequent resume_session() won't create a second observer (which
+    would cause every streamed token to be delivered twice).
+    Conversation history is preserved server-side — only the live connection
+    is torn down.
+    """
+    # Clean up any lingering event handler we may still hold
+    old_sid = id(old_session)
+    stale = _active_unsubscribers.pop(old_sid, None)
+    if stale:
+        try:
+            stale()
+        except Exception:
+            pass
+    try:
+        await old_session.destroy()
+    except Exception:
+        pass  # best-effort; resume_session will reconnect regardless
+
+
 async def _get_or_create_session(
     client: CopilotClient, conversation_key: str,
     skill_slugs: list[str] | None = None,
     mcp_slugs: list[str] | None = None,
 ):
-    """Get existing session or create a new one.
+    """Get existing session or create/re-resume one.
 
-    Skills & MCPs are locked after the session is created: subsequent calls
-    always use the cached session regardless of what is passed in.
+    If skills or MCPs changed since the last call, the old session is
+    destroyed (soft disconnect) and re-resumed with the new config.
+    Conversation history is preserved server-side.
     """
+    new_fp = _config_fingerprint(skill_slugs, mcp_slugs)
+
     if conversation_key in _sessions:
-        return _sessions[conversation_key]
+        old_fp = _session_config_cache.get(conversation_key)
+        if old_fp == new_fp:
+            return _sessions[conversation_key]  # config unchanged — reuse
+
+        # Config changed — destroy old observer, then re-resume
+        old_session = _sessions[conversation_key]
+        copilot_sid = old_session.session_id if hasattr(old_session, 'session_id') else None
+        if copilot_sid:
+            await _destroy_old_session(old_session)
+            config = _build_session_config(skill_slugs, mcp_slugs, is_new=False)
+            session = await client.resume_session(copilot_sid, config)
+            _sessions[conversation_key] = session
+            _copilot_id_to_session[copilot_sid] = session
+            _session_config_cache[conversation_key] = new_fp
+            return session
 
     # First call — create a brand-new session
     config = _build_session_config(skill_slugs, mcp_slugs, is_new=True)
     session = await client.create_session(config)
     _sessions[conversation_key] = session
+    _session_config_cache[conversation_key] = new_fp
     # Track by Copilot session ID so resume_session can find it later
     if hasattr(session, 'session_id') and session.session_id:
         _copilot_id_to_session[session.session_id] = session
@@ -220,18 +273,42 @@ async def _get_or_resume_session(
 ):
     """Resume a local Copilot CLI session by ID.
 
-    On first call, resumes with the given config. On subsequent calls,
-    the cached session is returned (skills & MCPs locked to first resume).
+    If skills or MCPs changed since the last call, the session is re-resumed
+    with the new config while preserving conversation history (server-side).
     """
+    new_fp = _config_fingerprint(skill_slugs, mcp_slugs)
+
     if session_id in _resumed_sdk_sessions:
-        return _resumed_sdk_sessions[session_id]
+        old_fp = _session_config_cache.get(f"resume:{session_id}")
+        if old_fp == new_fp:
+            return _resumed_sdk_sessions[session_id]  # config unchanged — reuse
+
+        # Config changed — destroy old observer, then re-resume
+        await _destroy_old_session(_resumed_sdk_sessions[session_id])
+        config = _build_session_config(skill_slugs, mcp_slugs, is_new=False)
+        session = await client.resume_session(session_id, config)
+        _resumed_sdk_sessions[session_id] = session
+        _copilot_id_to_session[session_id] = session
+        _session_config_cache[f"resume:{session_id}"] = new_fp
+        return session
 
     # Check if this Copilot session was already created via create_session —
     # reuse it to avoid two SDK objects connected to the same server session
     # (which causes duplicated streaming output).
     if session_id in _copilot_id_to_session:
-        session = _copilot_id_to_session[session_id]
+        old_fp = _session_config_cache.get(f"resume:{session_id}")
+        if old_fp == new_fp:
+            session = _copilot_id_to_session[session_id]
+            _resumed_sdk_sessions[session_id] = session
+            return session
+
+        # Config changed vs what was used at creation — destroy old, re-resume
+        await _destroy_old_session(_copilot_id_to_session[session_id])
+        config = _build_session_config(skill_slugs, mcp_slugs, is_new=False)
+        session = await client.resume_session(session_id, config)
         _resumed_sdk_sessions[session_id] = session
+        _copilot_id_to_session[session_id] = session
+        _session_config_cache[f"resume:{session_id}"] = new_fp
         return session
 
     # First resume — no existing session found
@@ -239,6 +316,7 @@ async def _get_or_resume_session(
     session = await client.resume_session(session_id, config)
     _resumed_sdk_sessions[session_id] = session
     _copilot_id_to_session[session_id] = session
+    _session_config_cache[f"resume:{session_id}"] = new_fp
     return session
 
 

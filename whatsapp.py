@@ -39,7 +39,6 @@ def _get_wa_session(sender: str) -> dict:
             "skills": [],
             "mcps": [],
             "resumed_session_id": None,
-            "has_sent_message": False,
         }
     return _wa_sessions[sender]
 
@@ -67,7 +66,6 @@ def _handle_help(session: dict = None) -> str:
         "*/new* — start a fresh session\n"
         "*/help* — show this message"
     )
-    base += "\n\nℹ️ *Skills & MCP servers must be set before your first message. They cannot be changed mid-conversation.*"
     return base
 
 
@@ -79,7 +77,6 @@ def _handle_skills() -> str:
     for s in skills:
         lines.append(f"  #{s['slug']} — {s.get('description', s.get('name', ''))}")
     lines.append("\nUse */use #slug* to activate one or more.")
-    lines.append("\n⚠️ *Skills must be set before your first message. They cannot be changed mid-conversation.*")
     return "\n".join(lines)
 
 
@@ -91,28 +88,14 @@ def _handle_mcps() -> str:
     for m in mcps:
         lines.append(f"  %{m['slug']} — {m.get('description', m.get('name', ''))}")
     lines.append("\nUse */use %slug* to activate one or more.")
-    lines.append("\n⚠️ *MCP servers must be set before your first message. They cannot be changed mid-conversation.*")
     return "\n".join(lines)
 
 
 def _handle_use(args: str, session: dict) -> str:
-    """Parse /use #skill1 #skill2 %mcp1 %mcp2 and update session.
-
-    Skills & MCPs are locked after the first message has been sent."""
+    """Parse /use #skill1 #skill2 %mcp1 %mcp2 and update session."""
     tokens = args.split()
     new_skills = [t[1:] for t in tokens if t.startswith("#")]
     new_mcps   = [t[1:] for t in tokens if t.startswith("%")]
-
-    # Block changes after the first message
-    if session.get("has_sent_message") and (new_skills or new_mcps):
-        blocked = []
-        if new_skills:
-            blocked.append("skills")
-        if new_mcps:
-            blocked.append("MCP servers")
-        msg = f"⚠️ {' & '.join(blocked)} are locked after your first message.\n"
-        msg += "Use */new* to start a fresh session if you need different " + " / ".join(blocked) + "."
-        return msg
 
     # Validate slugs
     valid_skills = {s["slug"] for s in list_skill_directories()}
@@ -164,7 +147,6 @@ def _handle_new(session: dict) -> str:
     session["skills"] = []
     session["mcps"] = []
     session["resumed_session_id"] = None
-    session["has_sent_message"] = False
     return "🆕 Session reset. You're starting fresh.\nUse */use* to set skills/MCPs, or just start chatting."
 
 
@@ -217,12 +199,11 @@ def _handle_resume(args: str, session: dict) -> str:
             for m in detail["messages"]
         ]
     session["resumed_session_id"] = match
-    session["has_sent_message"] = True  # lock skills/MCPs — resumed sessions don't support adding new ones
     summary = detail.get("summary", "session") if detail else "session"
     return (
         f"📂 Resumed: *{summary}*\n"
-        f"History loaded ({len(session['history'])} messages). Send a message to continue.\n\n"
-        f"ℹ️ *Note:* Skills & MCP servers cannot be added to resumed sessions. Use */new* to start a fresh session if you need them."
+        f"History loaded ({len(session['history'])} messages). Send a message to continue.\n"
+        f"Use */use #skill %mcp* to add skills or MCP servers at any time."
     )
 
 
@@ -235,7 +216,6 @@ def _handle_chat(message: str, session: dict, twilio_client, twilio_from: str, s
 
     # Add user message to history
     session["history"].append({"role": "user", "text": message})
-    session["has_sent_message"] = True  # lock skills/MCPs from this point
 
     # We use a threading approach: try the agent call in a thread,
     # if it finishes within ~12 seconds, return inline. Otherwise

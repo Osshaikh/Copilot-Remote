@@ -22,6 +22,8 @@ _loop_thread: threading.Thread | None = None
 _client: CopilotClient | None = None
 _sessions: dict[str, object] = {}  # session cache keyed by conversation hash
 _resumed_sdk_sessions: dict[str, object] = {}  # sessions resumed via client.resume_session()
+_copilot_id_to_session: dict[str, object] = {}  # copilot session_id → SDK session (covers both created & resumed)
+_active_unsubscribers: dict[int, callable] = {}  # id(session) → unsubscribe fn, prevents duplicate handlers
 _lock = threading.Lock()
 
 # Working directory for file operations - defaults to pilot_folder subdirectory
@@ -205,6 +207,9 @@ async def _get_or_create_session(
     config = _build_session_config(skill_slugs, mcp_slugs, is_new=True)
     session = await client.create_session(config)
     _sessions[conversation_key] = session
+    # Track by Copilot session ID so resume_session can find it later
+    if hasattr(session, 'session_id') and session.session_id:
+        _copilot_id_to_session[session.session_id] = session
     return session
 
 
@@ -221,10 +226,19 @@ async def _get_or_resume_session(
     if session_id in _resumed_sdk_sessions:
         return _resumed_sdk_sessions[session_id]
 
-    # First resume
+    # Check if this Copilot session was already created via create_session —
+    # reuse it to avoid two SDK objects connected to the same server session
+    # (which causes duplicated streaming output).
+    if session_id in _copilot_id_to_session:
+        session = _copilot_id_to_session[session_id]
+        _resumed_sdk_sessions[session_id] = session
+        return session
+
+    # First resume — no existing session found
     config = _build_session_config(skill_slugs, mcp_slugs, is_new=False)
     session = await client.resume_session(session_id, config)
     _resumed_sdk_sessions[session_id] = session
+    _copilot_id_to_session[session_id] = session
     return session
 
 
@@ -291,16 +305,28 @@ async def _ask_agent_streaming_async(
         elif event.type == SessionEventType.SESSION_IDLE:
             event_queue.put({
                 "type": "done",
-                "content": "".join(content_parts)
+                "content": "".join(content_parts),
+                "copilot_session_id": session.session_id if hasattr(session, 'session_id') else None
             })
     
-    # Register handler and capture unsubscribe function to avoid duplicate
-    # listeners on cached sessions (which cause repeated/stuttered output).
+    # Defensively remove any lingering handler from a previous call on this
+    # session — guards against the race where unsubscribe() in the finally block
+    # hasn't executed yet when the next message arrives (causes doubled tokens).
+    sid = id(session)
+    stale = _active_unsubscribers.pop(sid, None)
+    if stale:
+        try:
+            stale()
+        except Exception:
+            pass
+
     unsubscribe = session.on(handle_event)
+    _active_unsubscribers[sid] = unsubscribe
     try:
         await session.send_and_wait({"prompt": message}, 600000)  # 10 min timeout (ms)
     finally:
         unsubscribe()
+        _active_unsubscribers.pop(sid, None)
 
 
 async def _ask_agent_async(

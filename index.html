@@ -562,6 +562,7 @@
       </button>
     </div>
 
+    <div class="section-label">Active Sessions</div>
     <div id="sessions-list"></div>
 
     <div id="local-sessions-container" style="display:none">
@@ -945,6 +946,11 @@ async function sendMessage() {
             hideThinking();
             if (!started && ev.content) appendMessage('agent', ev.content);
             else finalizeStream(full);
+            // Track the Copilot session ID for deduplication with local sessions
+            if (ev.copilot_session_id && s) {
+              s.copilotSessionId = ev.copilot_session_id;
+              save(); renderLocalSessions();
+            }
           }
         } catch (_) {}
       }
@@ -1045,8 +1051,12 @@ function renderLocalSessions() {
   const container = document.getElementById('local-sessions-container');
   const list      = document.getElementById('local-sessions-list');
   if (!localSessions.length) { container.style.display = 'none'; return; }
+  // Hide local sessions that are already loaded as active UI sessions
+  const activeIds = new Set(sessions.flatMap(s => [s.resumedFrom, s.copilotSessionId].filter(Boolean)));
+  const filtered = localSessions.filter(s => !activeIds.has(s.sessionId));
+  if (!filtered.length) { container.style.display = 'none'; return; }
   container.style.display = 'block';
-  list.innerHTML = localSessions.map(s => `
+  list.innerHTML = filtered.map(s => `
     <div class="local-item ${s.sessionId===activeLocalId?'active':''}"
          onclick="selectLocalSession('${s.sessionId}')" title="${esc(s.summary||'')}">
       <div class="local-summary">${esc(s.summary||'Untitled session')}</div>
@@ -1055,6 +1065,12 @@ function renderLocalSessions() {
 }
 
 async function selectLocalSession(id) {
+  // Check if any active UI session already wraps this Copilot session ID
+  const existing = sessions.find(s => s.resumedFrom === id || s.copilotSessionId === id);
+  if (existing) {
+    selectSession(existing.id);
+    return;
+  }
   const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
   activeLocalId = id; renderLocalSessions();
   try {

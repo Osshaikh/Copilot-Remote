@@ -4,3 +4,7 @@ venv/
 .env
 nul
 twilio_config.py
+
+# Ignore contents of pilot_folder but keep the folder
+pilot_folder/*
+!pilot_folder/.gitkeep

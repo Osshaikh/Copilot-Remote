@@ -7,7 +7,7 @@ import json
 import threading
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from agent import ask_agent, ask_agent_streaming, list_skill_directories, list_mcp_servers, list_custom_agents
+from agent import ask_agent, ask_agent_streaming, list_skill_directories, list_mcp_servers, list_custom_agents, list_available_models, get_default_model
 from local_sessions import list_local_sessions, get_session_messages, fetch_sessions_sync
 from whatsapp import register_whatsapp_routes
 
@@ -92,6 +92,17 @@ def list_agents_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/models", methods=["GET"])
+def list_models_endpoint():
+    """Return list of available models from models_config.json."""
+    try:
+        models = list_available_models()
+        default = get_default_model()
+        return jsonify({"models": models, "default_model": default})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data    = request.json or {}
@@ -101,6 +112,7 @@ def chat():
     skill_slugs = data.get("skills", [])
     mcp_slugs = data.get("mcps", [])
     agent_slugs = data.get("agents", [])
+    model = data.get("model")
     ui_session_id = data.get("ui_session_id")
 
     if not message:
@@ -114,6 +126,7 @@ def chat():
             ui_session_id=ui_session_id,
             mcp_slugs=mcp_slugs,
             agent_slugs=agent_slugs,
+            model=model,
         )
         return jsonify({"reply": reply})
     except Exception as e:
@@ -130,6 +143,7 @@ def chat_stream():
     skill_slugs = data.get("skills", [])
     mcp_slugs = data.get("mcps", [])
     agent_slugs = data.get("agents", [])
+    model = data.get("model")
     ui_session_id = data.get("ui_session_id")
 
     if not message:
@@ -144,6 +158,7 @@ def chat_stream():
                 ui_session_id=ui_session_id,
                 mcp_slugs=mcp_slugs,
                 agent_slugs=agent_slugs,
+                model=model,
             ):
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:

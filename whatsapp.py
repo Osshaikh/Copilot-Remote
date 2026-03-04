@@ -8,8 +8,8 @@ pipeline, and replies back.
 Commands:
   /skills              — list available skills
   /mcps                — list available MCP servers
-  /agents              — list available custom agents
-  /use #slug #slug     — select skills for your session
+  /agents              — list available custom agents  /models              — list available models
+  /model <id>          — switch model for your session  /use #slug #slug     — select skills for your session
   /use %slug %slug     — select MCP servers for your session
   /use @slug @slug     — select custom agents for your session
   /config              — show current session config
@@ -25,7 +25,7 @@ from flask import request
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client as TwilioClient
 
-from agent import ask_agent, list_skill_directories, list_mcp_servers, list_custom_agents
+from agent import ask_agent, list_skill_directories, list_mcp_servers, list_custom_agents, list_available_models, get_default_model
 from local_sessions import list_local_sessions, get_session_messages, fetch_sessions_sync
 
 # ── Per-phone session state ────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ def _get_wa_session(sender: str) -> dict:
             "skills": [],
             "mcps": [],
             "agents": [],
+            "model": None,
             "resumed_session_id": None,
         }
     return _wa_sessions[sender]
@@ -62,6 +63,8 @@ def _handle_help(session: dict = None) -> str:
         "*/skills* — list available skills\n"
         "*/mcps* — list available MCP servers\n"
         "*/agents* — list available custom agents\n"
+        "*/models* — list available models\n"
+        "*/model <id>* — switch model (e.g. */model claude-sonnet-4*)\n"
         "*/use #code-review* — select skills\n"
         "*/use %workiq* — select MCP servers\n"
         "*/use @web-search* — select custom agents\n"
@@ -105,6 +108,34 @@ def _handle_agents() -> str:
         lines.append(f"  @{a['slug']} — {a.get('description', a.get('name', ''))}")
     lines.append("\nUse */use @slug* to activate one or more.")
     return "\n".join(lines)
+
+
+def _handle_models() -> str:
+    models = list_available_models()
+    default = get_default_model()
+    if not models:
+        return "No models available."
+    lines = ["*Available Models:*\n"]
+    for m in models:
+        marker = " ← current default" if m['id'] == default else ""
+        lines.append(f"  🧠 {m['id']} — {m.get('description', m.get('name', ''))}{marker}")
+    lines.append("\nUse */model <id>* to switch. Example: */model claude-sonnet-4*")
+    return "\n".join(lines)
+
+
+def _handle_model(args: str, session: dict) -> str:
+    """Switch the model for this WhatsApp session."""
+    model_id = args.strip()
+    if not model_id:
+        current = session.get("model") or get_default_model()
+        return f"Current model: 🧠 *{current}*\nUse */model <id>* to switch.\nUse */models* to see available models."
+
+    valid_models = {m["id"] for m in list_available_models()}
+    if model_id not in valid_models:
+        return f"❌ Unknown model: `{model_id}`\nUse */models* to see available options."
+
+    session["model"] = model_id
+    return f"✅ Model switched to 🧠 *{model_id}*"
 
 
 def _handle_use(args: str, session: dict) -> str:
@@ -158,10 +189,12 @@ def _handle_config(session: dict) -> str:
     skills_str = ", ".join(f"#{s}" for s in session["skills"]) if session["skills"] else "none"
     mcps_str   = ", ".join(f"%{s}" for s in session.get("mcps", [])) if session.get("mcps") else "none"
     agents_str = ", ".join(f"@{a}" for a in session.get("agents", [])) if session.get("agents") else "none"
+    model_str  = session.get("model") or get_default_model()
     resumed = session["resumed_session_id"] or "none"
     msg_count = len(session["history"])
     return (
         f"*Current Session Config:*\n\n"
+        f"Model: 🧠 {model_str}\n"
         f"Skills: {skills_str}\n"
         f"MCPs: {mcps_str}\n"
         f"Agents: {agents_str}\n"
@@ -175,8 +208,9 @@ def _handle_new(session: dict) -> str:
     session["skills"] = []
     session["mcps"] = []
     session["agents"] = []
+    session["model"] = None
     session["resumed_session_id"] = None
-    return "🆕 Session reset. You're starting fresh.\nUse */use* to set skills/MCPs/agents, or just start chatting."
+    return "🆕 Session reset. You're starting fresh.\nUse */use* to set skills/MCPs/agents, */model* to change model, or just start chatting."
 
 
 def _handle_sessions() -> str:
@@ -260,6 +294,7 @@ def _handle_chat(message: str, session: dict, twilio_client, twilio_from: str, s
                 skill_slugs=session.get("skills", []),
                 mcp_slugs=session.get("mcps", []),
                 agent_slugs=session.get("agents", []),
+                model=session.get("model"),
             )
             result_holder["reply"] = reply
         except Exception as e:
@@ -347,6 +382,12 @@ def register_whatsapp_routes(app):
             reply = _handle_mcps()
         elif text.lower() == "/agents":
             reply = _handle_agents()
+        elif text.lower() == "/models":
+            reply = _handle_models()
+        elif text.lower().startswith("/model "):
+            reply = _handle_model(text[7:], session)
+        elif text.lower() == "/model":
+            reply = _handle_model("", session)
         elif text.lower().startswith("/use "):
             reply = _handle_use(text[5:], session)
         elif text.lower() == "/use":

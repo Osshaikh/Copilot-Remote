@@ -250,6 +250,7 @@
   .hcfg-pill.skill { background: rgba(72,187,120,.1);  color: var(--green); border: 1px solid rgba(72,187,120,.2); }
   .hcfg-pill.mcp   { background: rgba(236,153,75,.1);  color: #ec994b; border: 1px solid rgba(236,153,75,.2); }
   .hcfg-pill.agent { background: rgba(168,85,247,.1);  color: #a855f7; border: 1px solid rgba(168,85,247,.2); }
+  .hcfg-pill.model { background: rgba(236,72,153,.1);  color: #ec4899; border: 1px solid rgba(236,72,153,.2); }
 
   /* ══ Messages ═════════════════════════════════ */
   #messages {
@@ -328,6 +329,39 @@
   .tool-event.error .tool-bullet { color: var(--red); }
   .tool-event.error .tool-name   { color: var(--red); }
   .tool-event.error .tool-args   { color: var(--red); opacity: .7; }
+
+  /* ══ Reasoning / Thinking ════════════════════ */
+  .reasoning-block {
+    padding: 6px 22px 6px 72px;
+    animation: fadeUp .12s ease both;
+  }
+  .reasoning-header {
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    font-size: 11px; color: var(--text-3);
+    padding: 4px 0;
+  }
+  .reasoning-header .reasoning-icon { font-size: 12px; transition: transform .2s; }
+  .reasoning-header.open .reasoning-icon { transform: rotate(90deg); }
+  .reasoning-header .reasoning-label { font-weight: 600; letter-spacing: .04em; }
+  .reasoning-content {
+    display: none; padding: 6px 0 4px 18px;
+    font-size: 12px; line-height: 1.65; color: var(--text-2);
+    white-space: pre-wrap; word-break: break-word;
+    border-left: 2px solid var(--border-2); margin-left: 5px;
+    max-height: 300px; overflow-y: auto;
+  }
+  .reasoning-block.open .reasoning-content { display: block; }
+  .reasoning-block.streaming .reasoning-header .reasoning-label::after {
+    content: '…'; animation: blink 1.2s infinite;
+  }
+
+  @media (max-width: 768px) {
+    .reasoning-block { padding: 6px 14px 6px 56px; }
+  }
+  @media (min-width: 1200px) {
+    .reasoning-block { padding: 6px 28px 6px 82px; }
+  }
 
   /* ══ Thinking ═════════════════════════════════ */
   .thinking { display: flex; gap: 14px; padding: 14px 22px; align-items: center; }
@@ -429,6 +463,19 @@
   }
   .cfg-opt.sel .cfg-chk { border-color: var(--blue); background: var(--blue); color: #fff; }
 
+  /* Radio-style for single-select (model picker) */
+  .cfg-opt .cfg-radio {
+    width: 15px; height: 15px; border: 1.5px solid var(--border-2); border-radius: 50%;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    margin-top: 2px; transition: all .12s;
+  }
+  .cfg-opt .cfg-radio::after {
+    content: ''; width: 7px; height: 7px; border-radius: 50%;
+    background: transparent; transition: background .12s;
+  }
+  .cfg-opt.sel .cfg-radio { border-color: var(--blue); }
+  .cfg-opt.sel .cfg-radio::after { background: var(--blue); }
+
   .cfg-info { flex: 1; min-width: 0; }
   .cfg-name { font-size: 12px; font-weight: 600; color: var(--text); }
   .cfg-desc {
@@ -445,6 +492,7 @@
   .cfg-pill.skill { background: rgba(72,187,120,.1);  border: 1px solid rgba(72,187,120,.2);  color: var(--green); }
   .cfg-pill.mcp   { background: rgba(236,153,75,.1);  border: 1px solid rgba(236,153,75,.25); color: #ec994b; }
   .cfg-pill.agent { background: rgba(168,85,247,.1);  border: 1px solid rgba(168,85,247,.25); color: #a855f7; }
+  .cfg-pill.model { background: rgba(236,72,153,.1);  border: 1px solid rgba(236,72,153,.25); color: #ec4899; }
   .cfg-pill .px { opacity: .5; cursor: pointer; font-size: 13px; transition: opacity .12s; }
   .cfg-pill .px:hover { opacity: 1; }
 
@@ -633,6 +681,16 @@
             <span class="cfg-count" id="agent-count" style="display:none">0</span>
           </button>
         </div>
+        <div class="cfg-sel" id="model-sel">
+          <div class="cfg-dd" id="model-dd">
+            <div class="cfg-dd-hdr">Model</div>
+            <div id="model-opts"></div>
+          </div>
+          <button class="cfg-trigger" onclick="toggleDD('model')">
+            <span>🧠 Model</span>
+            <span class="cfg-count" id="model-label" style="display:none"></span>
+          </button>
+        </div>
         <div class="cfg-pills" id="cfg-pills"></div>
       </div>
 
@@ -658,6 +716,8 @@ let activeLocalId   = null;
 let availableSkills = [];
 let availableMcps   = [];
 let availableAgents = [];
+let availableModels = [];
+let defaultModel    = 'gpt-4.1';
 
 const save    = () => localStorage.setItem('ac2_sessions', JSON.stringify(sessions));
 const getSess = id  => sessions.find(s => s.id === id);
@@ -687,7 +747,7 @@ function closeSidebar() {
 function newSession() {
   const id    = 'sess_' + Date.now();
   const label = 'Session ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-  sessions.unshift({ id, label, messages: [], skills: [], mcps: [], agents: [] });
+  sessions.unshift({ id, label, messages: [], skills: [], mcps: [], agents: [], model: null });
   save(); renderSidebar(); selectSession(id);
 }
 
@@ -702,6 +762,8 @@ function deleteSession(id, e) {
 function selectSession(id) {
   activeId = id; activeLocalId = null;
   renderSidebar(); renderLocalSessions(); renderChat(getSess(id)); renderConfigBar();
+  // Load model opts as they depend on session state
+  renderModelOpts();
   closeSidebar();
 }
 
@@ -868,6 +930,38 @@ function appendToolEvent(type, tool, args) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+// ── Reasoning / Thinking Events ───────────────────────────────────────────────
+function appendReasoningDelta(content) {
+  const msgs = document.getElementById('messages');
+  let block = msgs.querySelector('.reasoning-block.streaming');
+  if (!block) {
+    // Create a new reasoning block
+    block = document.createElement('div');
+    block.className = 'reasoning-block streaming open';
+    block.innerHTML = `
+      <div class="reasoning-header open" onclick="this.parentElement.classList.toggle('open');this.classList.toggle('open')">
+        <span class="reasoning-icon">▶</span>
+        <span class="reasoning-label">Thinking</span>
+      </div>
+      <div class="reasoning-content"></div>`;
+    msgs.appendChild(block);
+  }
+  const contentEl = block.querySelector('.reasoning-content');
+  contentEl.textContent += content;
+  contentEl.scrollTop = contentEl.scrollHeight;
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function finalizeReasoning() {
+  const msgs = document.getElementById('messages');
+  const block = msgs.querySelector('.reasoning-block.streaming');
+  if (block) {
+    block.classList.remove('streaming');
+    // Collapse it after streaming ends
+    block.classList.remove('open');
+    block.querySelector('.reasoning-header').classList.remove('open');
+  }
+}
+
 // ── Streaming ─────────────────────────────────────────────────────────────────
 function createStreamingMessage() {
   const msgs = document.getElementById('messages');
@@ -918,6 +1012,7 @@ async function sendMessage() {
       skills:  s.skills  || [],
       mcps:    s.mcps    || [],
       agents:  s.agents  || [],
+      model:   s.model   || null,
       ui_session_id: s.id,
     };
     if (s.resumedFrom) body.resumed_session_id = s.resumedFrom;
@@ -944,6 +1039,10 @@ async function sendMessage() {
             if (!started) { started = true; hideThinking(); createStreamingMessage(); }
             full += ev.content; appendToStream(ev.content);
           }
+          else if (ev.type === 'reasoning_delta') {
+            hideThinking();
+            appendReasoningDelta(ev.content);
+          }
           else if (ev.type === 'tool_start') {
             hideThinking();
             appendToolEvent('tool_start',   ev.tool, ev.args ?? ev.input ?? null);
@@ -958,6 +1057,7 @@ async function sendMessage() {
           }
           else if (ev.type === 'done') {
             hideThinking();
+            finalizeReasoning();
             if (!started && ev.content) appendMessage('agent', ev.content);
             else finalizeStream(full);
             // Track the Copilot session ID for deduplication with local sessions
@@ -1017,6 +1117,7 @@ const closeDD = e => {
   if (!e.target.closest('#skill-sel')) document.getElementById('skill-dd').classList.remove('open');
   if (!e.target.closest('#mcp-sel'))   document.getElementById('mcp-dd').classList.remove('open');
   if (!e.target.closest('#agent-sel')) document.getElementById('agent-dd').classList.remove('open');
+  if (!e.target.closest('#model-sel')) document.getElementById('model-dd').classList.remove('open');
 };
 document.addEventListener('click', closeDD);
 document.addEventListener('touchstart', closeDD, { passive: true });
@@ -1091,7 +1192,7 @@ async function selectLocalSession(id) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     const sid = 'local_' + id.slice(0,8) + '_' + Date.now();
-    sessions.unshift({ id: sid, label: '📂 ' + (d.summary||'Local Session'), messages: d.messages||[], resumedFrom: id, skills:[], mcps:[], agents:[] });
+    sessions.unshift({ id: sid, label: '📂 ' + (d.summary||'Local Session'), messages: d.messages||[], resumedFrom: id, skills:[], mcps:[], agents:[], model: null });
     save(); renderSidebar(); selectSession(sid);
   } catch (err) { showError('Failed: ' + err.message); }
 }
@@ -1118,10 +1219,21 @@ async function loadAgents() {
     if (r.ok) availableAgents = (await r.json()).agents || [];
   } catch {}
 }
+async function loadModels() {
+  const base = document.getElementById('endpoint-url').value.trim().replace(/\/chat\/?$/, '');
+  try {
+    const r = await fetch(base + '/models', { headers: { 'ngrok-skip-browser-warning': '1' }, signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      const data = await r.json();
+      availableModels = data.models || [];
+      defaultModel = data.default_model || 'gpt-4.1';
+    }
+  } catch {}
+}
 
 function renderConfigBar() {
   const s = getSess(activeId); if (!s) return;
-  renderSkillOpts(); renderMcpOpts(); renderAgentOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+  renderSkillOpts(); renderMcpOpts(); renderAgentOpts(); renderModelOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
 
 function renderHeaderConfig(s) {
@@ -1140,6 +1252,9 @@ function renderHeaderConfig(s) {
     const a = availableAgents.find(x=>x.slug===slug);
     html += `<span class="hcfg-pill agent">🤖${esc(a?.name||slug)}</span>`;
   });
+  const modelId = s.model || defaultModel;
+  const m = availableModels.find(x => x.id === modelId);
+  html += `<span class="hcfg-pill model">🧠${esc(m?.name || modelId)}</span>`;
   el.innerHTML = html;
 }
 
@@ -1216,6 +1331,26 @@ function removeAgent(slug) {
   save(); renderAgentOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
 }
 
+function renderModelOpts() {
+  const s = getSess(activeId), sel = s?.model || defaultModel;
+  const el = document.getElementById('model-opts');
+  if (!availableModels.length) { el.innerHTML = '<div class="cfg-empty">No models found</div>'; return; }
+  el.innerHTML = availableModels.map(m => {
+    const on = sel === m.id;
+    return `<div class="cfg-opt ${on?'sel':''}" onclick="selectModel('${m.id}')">
+      <div class="cfg-radio"></div>
+      <div class="cfg-info"><div class="cfg-name">🧠 ${esc(m.name||m.id)}</div><div class="cfg-desc">${esc(m.description||'')}</div></div>
+    </div>`;
+  }).join('');
+}
+function selectModel(id) {
+  const s = getSess(activeId); if (!s) return;
+  s.model = id;
+  save(); renderModelOpts(); renderPills(); updateTriggers(); renderHeaderConfig(s);
+  // Close the dropdown after selection
+  document.getElementById('model-dd').classList.remove('open');
+}
+
 function renderPills() {
   const s = getSess(activeId); const el = document.getElementById('cfg-pills');
   if (!s) { el.innerHTML = ''; return; }
@@ -1232,6 +1367,10 @@ function renderPills() {
     const a = availableAgents.find(x=>x.slug===slug);
     html += `<span class="cfg-pill agent">🤖${esc(a?.name||slug)}<span class="px" onclick="removeAgent('${slug}')">×</span></span>`;
   });
+  // Model pill
+  const modelId = s.model || defaultModel;
+  const mdl = availableModels.find(x => x.id === modelId);
+  html += `<span class="cfg-pill model">🧠${esc(mdl?.name || modelId)}</span>`;
   el.innerHTML = html;
 }
 
@@ -1241,34 +1380,45 @@ function updateTriggers() {
   const sb = document.querySelector('#skill-sel .cfg-trigger');
   const mb = document.querySelector('#mcp-sel .cfg-trigger');
   const ab = document.querySelector('#agent-sel .cfg-trigger');
+  const mlb = document.querySelector('#model-sel .cfg-trigger');
   sb.classList.toggle('active', skills.length>0);
   mb.classList.toggle('active', mcps.length>0);
   ab.classList.toggle('active', agents.length>0);
+  mlb.classList.add('active'); // model is always active since there's always a selection
 
   const sc = document.getElementById('skill-count');
   const mc = document.getElementById('mcp-count');
   const ac = document.getElementById('agent-count');
+  const ml = document.getElementById('model-label');
   sc.textContent = skills.length; sc.style.display = skills.length ? 'inline':'none';
   mc.textContent = mcps.length;   mc.style.display = mcps.length   ? 'inline':'none';
   ac.textContent = agents.length; ac.style.display = agents.length ? 'inline':'none';
+  const modelId = s?.model || defaultModel;
+  const mdl = availableModels.find(x => x.id === modelId);
+  ml.textContent = mdl?.name || modelId; ml.style.display = 'inline';
 }
 
 function toggleDD(type) {
   const sdd = document.getElementById('skill-dd');
   const mdd = document.getElementById('mcp-dd');
   const add = document.getElementById('agent-dd');
+  const mddd = document.getElementById('model-dd');
   if (type === 'skill') {
     const open = sdd.classList.contains('open');
-    sdd.classList.toggle('open', !open); mdd.classList.remove('open'); add.classList.remove('open');
+    sdd.classList.toggle('open', !open); mdd.classList.remove('open'); add.classList.remove('open'); mddd.classList.remove('open');
     if (!open) renderSkillOpts();
   } else if (type === 'mcp') {
     const open = mdd.classList.contains('open');
-    mdd.classList.toggle('open', !open); sdd.classList.remove('open'); add.classList.remove('open');
+    mdd.classList.toggle('open', !open); sdd.classList.remove('open'); add.classList.remove('open'); mddd.classList.remove('open');
     if (!open) renderMcpOpts();
-  } else {
+  } else if (type === 'agent') {
     const open = add.classList.contains('open');
-    add.classList.toggle('open', !open); sdd.classList.remove('open'); mdd.classList.remove('open');
+    add.classList.toggle('open', !open); sdd.classList.remove('open'); mdd.classList.remove('open'); mddd.classList.remove('open');
     if (!open) renderAgentOpts();
+  } else if (type === 'model') {
+    const open = mddd.classList.contains('open');
+    mddd.classList.toggle('open', !open); sdd.classList.remove('open'); mdd.classList.remove('open'); add.classList.remove('open');
+    if (!open) renderModelOpts();
   }
 }
 
@@ -1280,6 +1430,7 @@ loadLocalSessions(true);
 loadSkills();
 loadMcps();
 loadAgents();
+loadModels();
 setInterval(pingEndpoint, 30000);
 </script>
 </body>

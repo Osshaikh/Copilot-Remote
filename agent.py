@@ -34,10 +34,11 @@ WORKSPACE_DIR = os.environ.get("COPILOT_WORKSPACE", _DEFAULT_WORKSPACE)
 # Ensure the workspace folder exists
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
-# Directories for skills, MCP config, and custom agents config
+# Directories for skills, MCP config, custom agents config, and models config
 SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
 MCP_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp.json")
 AGENTS_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agents.json")
+MODELS_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models_config.json")
 
 # System message that instructs the agent about workspace behavior
 SYSTEM_MESSAGE = f"""You are a helpful coding assistant.
@@ -46,6 +47,33 @@ Default workspace: {WORKSPACE_DIR}
 
 IMPORTANT: By default, ALL file operations (create, read, write, delete, list) MUST happen inside the workspace folder above. Always use absolute paths starting with {WORKSPACE_DIR} when creating or accessing files. If the user explicitly asks to work in a different folder, use that folder instead.
 """
+
+
+DEFAULT_MODEL = "gpt-4.1"
+
+
+def load_models_config() -> dict:
+    """Load model configurations from models_config.json."""
+    if not os.path.isfile(MODELS_CONFIG_FILE):
+        return {"default_model": DEFAULT_MODEL, "models": [{"id": DEFAULT_MODEL, "name": "GPT-4.1", "description": ""}]}
+    try:
+        with open(MODELS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
+    except (json.JSONDecodeError, IOError):
+        return {"default_model": DEFAULT_MODEL, "models": [{"id": DEFAULT_MODEL, "name": "GPT-4.1", "description": ""}]}
+
+
+def list_available_models() -> list[dict]:
+    """Return a list of available models with their metadata."""
+    cfg = load_models_config()
+    return cfg.get("models", [])
+
+
+def get_default_model() -> str:
+    """Return the default model id."""
+    cfg = load_models_config()
+    return cfg.get("default_model", DEFAULT_MODEL)
 
 
 def load_mcp_servers() -> dict:
@@ -175,20 +203,26 @@ def _build_session_config(
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
     is_new: bool = True,
+    model: str | None = None,
 ) -> dict:
     """Build session config dict for create_session or resume_session.
 
     Args:
         is_new: True for create_session (includes model / system_message),
                 False for resume_session (server already knows those).
+        model: Model ID to use. Falls back to default from models_config.json.
     """
     config: dict = {
         "streaming": True,
         "on_permission_request": _approve_all_permissions,
     }
+    resolved_model = model or get_default_model()
     if is_new:
-        config["model"] = "gpt-4.1"
+        config["model"] = resolved_model
         config["system_message"] = {"content": SYSTEM_MESSAGE}
+    else:
+        # On resume, pass model so mid-conversation model switches take effect
+        config["model"] = resolved_model
 
     # Skill directories
     if skill_slugs:
@@ -250,12 +284,14 @@ def _config_fingerprint(
     skill_slugs: list[str] | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ) -> tuple:
-    """Return a hashable fingerprint of the current skill/MCP/agent config."""
+    """Return a hashable fingerprint of the current skill/MCP/agent/model config."""
     return (
         tuple(sorted(skill_slugs)) if skill_slugs else (),
         tuple(sorted(mcp_slugs)) if mcp_slugs else (),
         tuple(sorted(agent_slugs)) if agent_slugs else (),
+        model or get_default_model(),
     )
 
 
@@ -287,14 +323,15 @@ async def _get_or_create_session(
     skill_slugs: list[str] | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ):
     """Get existing session or create/re-resume one.
 
-    If skills, MCPs, or agents changed since the last call, the old session is
+    If skills, MCPs, agents, or model changed since the last call, the old session is
     destroyed (soft disconnect) and re-resumed with the new config.
     Conversation history is preserved server-side.
     """
-    new_fp = _config_fingerprint(skill_slugs, mcp_slugs, agent_slugs)
+    new_fp = _config_fingerprint(skill_slugs, mcp_slugs, agent_slugs, model)
 
     if conversation_key in _sessions:
         old_fp = _session_config_cache.get(conversation_key)
@@ -306,7 +343,7 @@ async def _get_or_create_session(
         copilot_sid = old_session.session_id if hasattr(old_session, 'session_id') else None
         if copilot_sid:
             await _destroy_old_session(old_session)
-            config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False)
+            config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False, model=model)
             session = await client.resume_session(copilot_sid, config)
             _sessions[conversation_key] = session
             _copilot_id_to_session[copilot_sid] = session
@@ -314,7 +351,7 @@ async def _get_or_create_session(
             return session
 
     # First call — create a brand-new session
-    config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=True)
+    config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=True, model=model)
     session = await client.create_session(config)
     _sessions[conversation_key] = session
     _session_config_cache[conversation_key] = new_fp
@@ -329,13 +366,14 @@ async def _get_or_resume_session(
     skill_slugs: list[str] | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ):
     """Resume a local Copilot CLI session by ID.
 
-    If skills, MCPs, or agents changed since the last call, the session is
+    If skills, MCPs, agents, or model changed since the last call, the session is
     re-resumed with the new config while preserving conversation history (server-side).
     """
-    new_fp = _config_fingerprint(skill_slugs, mcp_slugs, agent_slugs)
+    new_fp = _config_fingerprint(skill_slugs, mcp_slugs, agent_slugs, model)
 
     if session_id in _resumed_sdk_sessions:
         old_fp = _session_config_cache.get(f"resume:{session_id}")
@@ -344,7 +382,7 @@ async def _get_or_resume_session(
 
         # Config changed — destroy old observer, then re-resume
         await _destroy_old_session(_resumed_sdk_sessions[session_id])
-        config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False)
+        config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False, model=model)
         session = await client.resume_session(session_id, config)
         _resumed_sdk_sessions[session_id] = session
         _copilot_id_to_session[session_id] = session
@@ -363,7 +401,7 @@ async def _get_or_resume_session(
 
         # Config changed vs what was used at creation — destroy old, re-resume
         await _destroy_old_session(_copilot_id_to_session[session_id])
-        config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False)
+        config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False, model=model)
         session = await client.resume_session(session_id, config)
         _resumed_sdk_sessions[session_id] = session
         _copilot_id_to_session[session_id] = session
@@ -371,7 +409,7 @@ async def _get_or_resume_session(
         return session
 
     # First resume — no existing session found
-    config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False)
+    config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False, model=model)
     session = await client.resume_session(session_id, config)
     _resumed_sdk_sessions[session_id] = session
     _copilot_id_to_session[session_id] = session
@@ -386,6 +424,7 @@ async def _ask_agent_streaming_async(
     ui_session_id: str | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ):
     """
     Async implementation that streams events via a queue.
@@ -399,13 +438,14 @@ async def _ask_agent_streaming_async(
         ui_session_id : UI session ID for stable session caching
         mcp_slugs : list of MCP server slugs to connect
         agent_slugs : list of custom agent slugs to activate
+        model : model ID to use for this request
     """
     client = await _ensure_client()
     if resumed_session_id:
-        session = await _get_or_resume_session(client, resumed_session_id, skill_slugs, mcp_slugs, agent_slugs)
+        session = await _get_or_resume_session(client, resumed_session_id, skill_slugs, mcp_slugs, agent_slugs, model)
     else:
         conversation_key = ui_session_id or _get_conversation_key(history)
-        session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs)
+        session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs, model)
     
     content_parts = []
     
@@ -433,6 +473,14 @@ async def _ask_agent_streaming_async(
                 "type": "tool_complete",
                 "tool": tool_name
             })
+        
+        elif event.type == SessionEventType.ASSISTANT_REASONING_DELTA:
+            reasoning = event.data.reasoning_text if hasattr(event.data, 'reasoning_text') and event.data.reasoning_text else None
+            if reasoning:
+                event_queue.put({
+                    "type": "reasoning_delta",
+                    "content": reasoning
+                })
         
         elif event.type == SessionEventType.SESSION_ERROR:
             error_msg = event.data.message if hasattr(event.data, 'message') else 'Unknown error'
@@ -474,6 +522,7 @@ async def _ask_agent_async(
     ui_session_id: str | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ) -> str:
     """
     Async implementation that uses the Copilot SDK.
@@ -486,6 +535,7 @@ async def _ask_agent_async(
         ui_session_id : UI session ID for stable session caching
         mcp_slugs : list of MCP server slugs to connect
         agent_slugs : list of custom agent slugs to activate
+        model : model ID to use for this request
 
     Returns:
         Agent's reply as a string
@@ -493,10 +543,10 @@ async def _ask_agent_async(
     client = await _ensure_client()
     
     if resumed_session_id:
-        session = await _get_or_resume_session(client, resumed_session_id, skill_slugs, mcp_slugs, agent_slugs)
+        session = await _get_or_resume_session(client, resumed_session_id, skill_slugs, mcp_slugs, agent_slugs, model)
     else:
         conversation_key = ui_session_id or _get_conversation_key(history)
-        session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs)
+        session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs, model)
     
     # Send the current message - session automatically maintains context
     response = await session.send_and_wait({"prompt": message}, 600000)  # 10 min timeout (ms)
@@ -510,6 +560,7 @@ def ask_agent_streaming(
     ui_session_id: str | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ):
     """
     Generator that yields streaming events from the agent.
@@ -524,7 +575,7 @@ def ask_agent_streaming(
     future = asyncio.run_coroutine_threadsafe(
         _ask_agent_streaming_async(
             message, history, event_queue, resumed_session_id,
-            skill_slugs, ui_session_id, mcp_slugs, agent_slugs,
+            skill_slugs, ui_session_id, mcp_slugs, agent_slugs, model,
         ),
         loop
     )
@@ -552,6 +603,7 @@ def ask_agent(
     ui_session_id: str | None = None,
     mcp_slugs: list[str] | None = None,
     agent_slugs: list[str] | None = None,
+    model: str | None = None,
 ) -> str:
     """
     Synchronous wrapper for the async Copilot SDK call.
@@ -564,6 +616,7 @@ def ask_agent(
         ui_session_id : UI session ID for stable session caching
         mcp_slugs : list of MCP server slugs to connect
         agent_slugs : list of custom agent slugs to activate
+        model : model ID to use for this request
 
     Returns:
         Agent's reply as a string
@@ -572,7 +625,7 @@ def ask_agent(
     future = asyncio.run_coroutine_threadsafe(
         _ask_agent_async(
             message, history, resumed_session_id,
-            skill_slugs, ui_session_id, mcp_slugs, agent_slugs,
+            skill_slugs, ui_session_id, mcp_slugs, agent_slugs, model,
         ), loop
     )
     return future.result(timeout=300)  # 5 minute timeout for long-running tasks

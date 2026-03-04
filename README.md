@@ -16,6 +16,8 @@ A self-hosted agent chat application that wraps the **GitHub Copilot SDK** behin
 - **Skills** — add skill directories under `skills/` with a `SKILL.md` to give the agent domain-specific knowledge (code review, security audit, testing, docs writing)
 - **MCP Servers** — connect external tool servers via `mcp.json` (e.g., Work IQ, database tools) — the agent can invoke their tools during conversations
 - **Custom Agents** — define specialised agent personas in `agents.json` with custom prompts, dedicated tools, and embedded MCP servers (e.g., a web-search agent, a work-iq agent)
+- **Model switching** — swap the underlying Copilot model at any time (during a chat, when resuming, or when starting fresh) via a dropdown in the UI or `/model` commands on WhatsApp. Configure available models in `models_config.json`
+- **Reasoning / thinking display** — models that emit thinking tokens (e.g., Claude Sonnet 4) get a collapsible "Thinking…" block rendered in the chat so you can inspect the chain of thought
 - **Local session browser** — fetch, view, and resume past Copilot CLI sessions directly from the UI
 - **Single-file UI** — a dark-themed, mobile-responsive chat interface in one `index.html` — no build step required
 - **Workspace sandbox** — file operations default to the `pilot_folder/` directory for safety
@@ -111,6 +113,7 @@ local-pilot/
 ├── requirements.txt       # Python dependencies
 ├── mcp.json               # MCP server configurations
 ├── agents.json            # Custom agent definitions (prompts, tools, MCPs)
+├── models_config.json     # Available models and default model selection
 ├── skills/                # Skill directories (each has a SKILL.md)
 │   ├── code-review/
 │   ├── docs-writer/
@@ -130,6 +133,7 @@ local-pilot/
 | `GET` | `/skills` | List available skills |
 | `GET` | `/mcps` | List available MCP servers |
 | `GET` | `/agents` | List available custom agents |
+| `GET` | `/models` | List available models and the default model |
 | `GET` | `/local-sessions` | List previously fetched Copilot CLI sessions |
 | `POST` | `/local-sessions/fetch` | Trigger a fresh fetch of sessions from Copilot CLI |
 | `GET` | `/local-sessions/<id>` | Get full conversation for a local session |
@@ -201,6 +205,37 @@ Each key becomes a selectable agent in the **🤖 Agents** dropdown. Agents can 
 | `prompt` | System prompt that defines the agent's persona and behaviour |
 | `tools` | List of built-in tool names the agent should use (e.g., `web_fetch`) |
 | `mcp_servers` | Embedded MCP server configs that are activated when this agent is selected |
+
+## Models
+
+Configure the models available for selection in `models_config.json`:
+
+```json
+{
+  "default_model": "gpt-4.1",
+  "models": [
+    {
+      "id": "gpt-4.1",
+      "name": "GPT-4.1",
+      "description": "Fast, cost-efficient flagship model for most coding tasks"
+    },
+    {
+      "id": "claude-sonnet-4",
+      "name": "Claude Sonnet 4",
+      "description": "Anthropic's balanced model with extended thinking"
+    },
+    {
+      "id": "gpt-5-mini",
+      "name": "GPT-5 Mini",
+      "description": "Compact next-gen model with strong reasoning"
+    }
+  ]
+}
+```
+
+Models appear in the **🧠 Model** dropdown in the UI. The selected model is part of the session config fingerprint — switching models mid-conversation triggers a session re-resume so the new model takes effect immediately while preserving conversation history.
+
+Models that emit reasoning / thinking tokens (e.g., Claude Sonnet 4) will have their chain-of-thought rendered in a collapsible "Thinking…" block in the chat UI.
 
 ## Configuration
 
@@ -293,6 +328,8 @@ You should see in the terminal:
 | `/skills` | List available skills |
 | `/mcps` | List available MCP servers |
 | `/agents` | List available custom agents |
+| `/models` | List available models |
+| `/model <id>` | Switch to a specific model (e.g., `/model claude-sonnet-4`) |
 | `/use #code-review #testing` | Select skills for your session |
 | `/use %workiq` | Select MCP servers for your session |
 | `/use @web-search` | Select custom agents for your session |

@@ -7,3 +7,6 @@ pydantic
 
 # WhatsApp integration via Twilio
 twilio
+
+#teams
+requests

@@ -109,6 +109,11 @@ local-pilot/
 ├── local_sessions.py      # Fetch & browse past Copilot CLI sessions
 ├── whatsapp.py            # WhatsApp integration via Twilio webhooks
 ├── twilio_config.py       # Twilio credentials (⚠ do not commit)
+├── teams.py               # Teams integration via Azure Bot Framework
+├── teams_config.py        # Azure Bot credentials (⚠ do not commit)
+├── teams-app/             # Teams app package builder
+│   ├── manifest.json      # App manifest template (placeholder values)
+│   └── generate_teams_app.py  # Script to build the installable .zip
 ├── index.html             # Self-contained chat UI (HTML + CSS + JS)
 ├── requirements.txt       # Python dependencies
 ├── mcp.json               # MCP server configurations
@@ -246,6 +251,131 @@ Models that emit reasoning / thinking tokens (e.g., Claude Sonnet 4) will have t
 | `COPILOT_GITHUB_TOKEN` | — | GitHub token for Copilot SDK |
 | `GH_TOKEN` | — | Fallback GitHub token |
 | `GITHUB_TOKEN` | — | Second fallback GitHub token |
+
+## Microsoft Teams Integration
+
+Connect local-pilot to Microsoft Teams as a personal bot. Only you see it — no org-wide installation or IT approval required (as long as custom app sideloading is enabled for your account).
+
+### Setup
+
+#### Step 1 — Create an Azure Bot
+
+1. Go to [portal.azure.com](https://portal.azure.com)
+2. Search for **"Azure Bot"** → click **Create**
+3. Fill in:
+   - **Bot handle**: any unique name (e.g. `local-pilot-bot`)
+   - **Pricing tier**: F0 (Free)
+   - **Microsoft App ID**: choose _"Create new Microsoft App ID"_
+4. Click **Review + Create** → **Create**
+
+#### Step 2 — Get Your App ID & Password
+
+1. Open your new Bot resource → click **Configuration** in the sidebar
+2. Copy your **Microsoft App ID**
+3. Click **Manage Password** → **New client secret** → copy the **Value** immediately (not the Secret ID)
+
+> ⚠️ The secret value is only shown once at creation time. If you lose it, create a new one.
+
+#### Step 3 — Configure Local Credentials
+
+Create `teams_config.py` in the project root (already in `.gitignore`):
+
+```python
+# teams_config.py
+TEAMS_APP_ID       = "your-microsoft-app-id"
+TEAMS_APP_PASSWORD = "your-client-secret-VALUE"   # ← the Value, NOT the Secret ID
+TEAMS_TENANT_ID    = "your-tenant-id"
+```
+
+> **⚠ Do not commit this file** — it contains secrets and is excluded via `.gitignore`.
+
+#### Step 4 — Set the Messaging Endpoint
+
+1. In Azure Bot → **Configuration**
+2. Set **Messaging endpoint** to:
+   ```
+   https://YOUR_NGROK_URL/teams
+   ```
+3. Click **Apply**
+
+> ⚠️ Free ngrok URLs change on every restart. Update this whenever your ngrok URL changes.
+
+#### Step 5 — Enable the Teams Channel
+
+1. In Azure Bot → **Channels**
+2. Click **Microsoft Teams** → accept terms → **Apply**
+
+#### Step 6 — Build & Install the Teams App Package
+
+The `teams-app/` folder contains the manifest and a script to generate your personal app package:
+
+```bash
+python teams-app/generate_teams_app.py \
+    --app-id YOUR_MICROSOFT_APP_ID \
+    --ngrok-url https://YOUR_NGROK_URL
+```
+
+This generates `teams-app/local-pilot.zip`.
+
+Then in **Microsoft Teams**:
+1. Click **Apps** in the left sidebar
+2. Click **Manage your apps** → **Upload an app**
+3. Click **Upload a custom app**
+4. Select `teams-app/local-pilot.zip`
+5. Click **Add**
+
+The bot appears in your Teams **Chat** sidebar as **local-pilot** — only visible to you.
+
+#### Step 7 — Install dependencies & restart
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+You should see in the terminal:
+```
+[Teams] ✓ Azure Bot configured — App ID: 4c9dc273... Tenant: 83a49df7...
+[Teams] ✓ /teams endpoint registered
+```
+
+### Teams Commands
+
+| Command | Action |
+|---|---|
+| *(any text)* | Chat with the agent |
+| `/skills` | List available skills |
+| `/mcps` | List available MCP servers |
+| `/agents` | List available custom agents |
+| `/models` | List available models |
+| `/model <id>` | Switch to a specific model (e.g., `/model claude-sonnet-4`) |
+| `/use #code-review #testing` | Select skills for your session |
+| `/use %workiq` | Select MCP servers for your session |
+| `/use @web-search` | Select custom agents for your session |
+| `/config` | Show current session config |
+| `/sessions` | List recent local Copilot sessions |
+| `/resume <id>` | Resume a past session |
+| `/new` | Start a fresh session |
+| `/help` | Show command list |
+
+### How It Works
+
+- Each Teams user gets their own session state (history, selected skills, model)
+- If the agent replies within ~4 seconds, the response is sent directly
+- If it takes longer, you get a "⏳ Thinking..." message and the real reply is delivered asynchronously via the Bot Framework REST API
+- Replies are truncated to ~4000 characters to keep messages readable
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Bot doesn't respond | Check ngrok is running and the URL in Azure matches. Check Flask logs for `[Teams] ✓ /teams endpoint registered` |
+| `400 Bad Request` on token | You're using the Secret **ID** instead of the Secret **Value** — create a new secret and copy the Value |
+| "You do not have permission" | Your org has sideloading disabled — contact IT or use the Azure "Open in Teams" link instead |
+| Replies are slow / "⏳ Thinking..." | Expected for long agent calls. Teams requires a 5s response, so the bot sends a placeholder and follows up |
+| ngrok URL changed | Update the messaging endpoint in **Azure Bot → Configuration** and rebuild the zip with the new URL |
+
+---
 
 ## WhatsApp Integration (via Twilio)
 

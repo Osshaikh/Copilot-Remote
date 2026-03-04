@@ -11,11 +11,16 @@ from agent import ask_agent, ask_agent_streaming, list_skill_directories, list_m
 from local_sessions import list_local_sessions, get_session_messages, fetch_sessions_sync
 from whatsapp import register_whatsapp_routes
 
+from teams import register_teams_routes
+
 app = Flask(__name__)
 CORS(app)  # required so the HTML file (file://) can call localhost
 
 # Register WhatsApp webhook (only activates if twilio_config.py is filled in)
 register_whatsapp_routes(app)
+
+# Register Teams
+register_teams_routes(app)
 
 
 @app.route("/health", methods=["GET"])

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "YOUR_MICROSOFT_APP_ID",
+  "developer": {
+    "name": "Local Dev",
+    "websiteUrl": "https://YOUR_NGROK_URL",
+    "privacyUrl": "https://YOUR_NGROK_URL",
+    "termsOfUseUrl": "https://YOUR_NGROK_URL"
+  },
+  "name": {
+    "short": "local-pilot",
+    "full": "local-pilot Agent Bot"
+  },
+  "description": {
+    "short": "AI agent via local API",
+    "full": "Chat with your local AI agent pipeline directly from Microsoft Teams."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#6264A7",
+  "bots": [
+    {
+      "botId": "YOUR_MICROSOFT_APP_ID",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false,
+      "supportsFiles": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["YOUR_NGROK_URL"]
+}

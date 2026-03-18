@@ -297,7 +297,3 @@ Or simply double-click `start.cmd` to run manually.
 ## License
 
 Private / Internal use.
-
-## Author
-
-**Osama Shaikh** — [osshaikh@microsoft.com](mailto:osshaikh@microsoft.com)

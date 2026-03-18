@@ -10,3 +10,6 @@ twilio
 
 #teams
 requests
+
+# Telegram integration
+python-telegram-bot

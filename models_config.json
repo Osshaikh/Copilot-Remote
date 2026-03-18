@@ -1,10 +1,35 @@
 {
-  "default_model": "gpt-4.1",
+  "default_model": "claude-sonnet-4.6",
   "models": [
     {
-      "id": "gpt-4.1",
-      "name": "GPT-4.1",
-      "description": "Fast, cost-efficient flagship model for most coding tasks"
+      "id": "claude-sonnet-4.6",
+      "name": "Claude Sonnet 4.6",
+      "description": "Latest Anthropic Sonnet — fast, high-quality coding"
+    },
+    {
+      "id": "claude-sonnet-4.5",
+      "name": "Claude Sonnet 4.5",
+      "description": "Anthropic Sonnet with strong balanced reasoning"
+    },
+    {
+      "id": "claude-haiku-4.5",
+      "name": "Claude Haiku 4.5",
+      "description": "Fast and cheap Anthropic model"
+    },
+    {
+      "id": "claude-opus-4.6",
+      "name": "Claude Opus 4.6",
+      "description": "Premium Anthropic model — best reasoning"
+    },
+    {
+      "id": "claude-opus-4.6-1m",
+      "name": "Claude Opus 4.6 (1M context)",
+      "description": "Premium Opus with 1M token context window"
+    },
+    {
+      "id": "claude-opus-4.5",
+      "name": "Claude Opus 4.5",
+      "description": "Premium Anthropic model — deep reasoning"
     },
     {
       "id": "claude-sonnet-4",
@@ -12,9 +37,59 @@
       "description": "Anthropic's balanced model with extended thinking"
     },
     {
+      "id": "gemini-3-pro-preview",
+      "name": "Gemini 3 Pro (Preview)",
+      "description": "Google's latest preview model"
+    },
+    {
+      "id": "gpt-5.4",
+      "name": "GPT-5.4",
+      "description": "Latest OpenAI flagship model"
+    },
+    {
+      "id": "gpt-5.3-codex",
+      "name": "GPT-5.3 Codex",
+      "description": "Code-optimized GPT-5.3"
+    },
+    {
+      "id": "gpt-5.2-codex",
+      "name": "GPT-5.2 Codex",
+      "description": "Code-optimized GPT-5.2"
+    },
+    {
+      "id": "gpt-5.2",
+      "name": "GPT-5.2",
+      "description": "Strong general-purpose GPT-5.2"
+    },
+    {
+      "id": "gpt-5.1-codex-max",
+      "name": "GPT-5.1 Codex Max",
+      "description": "Maximum capability code model"
+    },
+    {
+      "id": "gpt-5.1-codex",
+      "name": "GPT-5.1 Codex",
+      "description": "Code-optimized GPT-5.1"
+    },
+    {
+      "id": "gpt-5.1",
+      "name": "GPT-5.1",
+      "description": "General-purpose GPT-5.1"
+    },
+    {
+      "id": "gpt-5.1-codex-mini",
+      "name": "GPT-5.1 Codex Mini",
+      "description": "Compact fast code model"
+    },
+    {
       "id": "gpt-5-mini",
       "name": "GPT-5 Mini",
       "description": "Compact next-gen model with strong reasoning"
+    },
+    {
+      "id": "gpt-4.1",
+      "name": "GPT-4.1",
+      "description": "Fast, cost-efficient model for most coding tasks"
     }
   ]
 }

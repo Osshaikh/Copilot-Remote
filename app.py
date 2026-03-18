@@ -11,6 +11,7 @@ from agent import ask_agent, ask_agent_streaming, list_skill_directories, list_m
 from local_sessions import list_local_sessions, get_session_messages, fetch_sessions_sync
 from whatsapp import register_whatsapp_routes
 from teams import register_teams_routes
+from telegram_bot import start_telegram_bot
 
 app = Flask(__name__)
 CORS(app)  # required so the HTML file (file://) can call localhost
@@ -21,6 +22,8 @@ register_whatsapp_routes(app)
 # Register Teams azure bot ((only activates if teams_config.py is filled in))
 register_teams_routes(app)
 
+# Start Telegram bot (only activates if telegram_config.py is filled in)
+start_telegram_bot()
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -182,4 +185,4 @@ def chat_stream():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"\n  Agent chat server running → http://localhost:{port}\n")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)

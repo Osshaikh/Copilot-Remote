@@ -1,26 +1,45 @@
-# Local Pilot — Agent Chat UI powered by GitHub Copilot SDK
+# Copilot Remote — Access GitHub Copilot from Your Phone via Telegram
 
-A self-hosted agent chat application that wraps the **GitHub Copilot SDK** behind a Flask server and exposes it through **ngrok** so the chat UI can be accessed from any device, anywhere.
+A self-hosted agent that wraps the **GitHub Copilot SDK** behind a Flask server with a **Telegram bot** for remote access — chat with Copilot from your phone, no browser or ngrok needed.
 
 ```
-┌──────────────┐      ngrok tunnel       ┌────────────────┐      Copilot SDK      ┌───────────┐
-│  Browser /   │  ◄──────────────────►   │  Flask server  │  ◄────────────────►   │  GitHub   │
-│  Mobile      │   (public HTTPS URL)    │  (localhost)   │   sessions & tools    │  Copilot  │
-└──────────────┘                          └────────────────┘                       └───────────┘
+┌──────────────┐    Telegram API     ┌────────────────┐     Copilot SDK      ┌───────────┐
+│  Your Phone  │ ◄─────────────────► │  Flask server  │ ◄──────────────────► │  GitHub   │
+│  (Telegram)  │  (long-polling,     │  + Telegram    │   sessions & tools   │  Copilot  │
+└──────────────┘   no ports needed)  │  bot thread    │                      └───────────┘
+                                     └────────────────┘
+                                           │
+                                     ┌─────┴──────┐
+                                     │  Optional  │
+                                     │  Browser   │
+                                     │  Chat UI   │
+                                     │ (localhost) │
+                                     └────────────┘
 ```
+
+## Why Telegram?
+
+| | Telegram Bot | WhatsApp (Twilio) | ngrok + Browser |
+|---|---|---|---|
+| **Setup** | 1 step (BotFather token) | 4+ steps (Twilio account, ngrok, webhook, phone number) |  2 steps (ngrok account + tunnel) |
+| **Cost** | Free | ~$0.005/message + phone number fee | Free (limited) or paid |
+| **Inbound ports** | None (outbound polling) | Yes (webhook needs public URL) | Yes (tunnel) |
+| **Moving parts** | Flask + bot thread | Flask + ngrok + Twilio + webhook | Flask + ngrok |
+| **Works offline?** | Bot queues messages | Breaks if ngrok is down | Breaks if ngrok is down |
 
 ## Features
 
-- **Remote access via ngrok** — run the server locally, get a public HTTPS URL, and chat from your phone/tablet/any browser on earth
-- **Streaming responses** — real-time Server-Sent Events (SSE) streaming with tool-call visibility (start/complete/error)
-- **Skills** — add skill directories under `skills/` with a `SKILL.md` to give the agent domain-specific knowledge (code review, security audit, testing, docs writing)
-- **MCP Servers** — connect external tool servers via `mcp.json` (e.g., Work IQ, database tools) — the agent can invoke their tools during conversations
-- **Custom Agents** — define specialised agent personas in `agents.json` with custom prompts, dedicated tools, and embedded MCP servers (e.g., a web-search agent, a work-iq agent)
-- **Model switching** — swap the underlying Copilot model at any time (during a chat, when resuming, or when starting fresh) via a dropdown in the UI or `/model` commands on WhatsApp. Configure available models in `models_config.json`
-- **Reasoning / thinking display** — models that emit thinking tokens (e.g., Claude Sonnet 4) get a collapsible "Thinking…" block rendered in the chat so you can inspect the chain of thought
-- **Local session browser** — fetch, view, and resume past Copilot CLI sessions directly from the UI
-- **Single-file UI** — a dark-themed, mobile-responsive chat interface in one `index.html` — no build step required
-- **Workspace sandbox** — file operations default to the `pilot_folder/` directory for safety
+- **Telegram bot** — chat with Copilot from your phone using simple commands, no browser needed
+- **Browser UI** — optional dark-themed, mobile-responsive chat interface (`index.html`) on localhost
+- **Streaming responses** — real-time SSE streaming in the browser UI with tool-call visibility
+- **Skills** — add skill directories under `skills/` with a `SKILL.md` for domain-specific knowledge
+- **MCP Servers** — connect external tool servers via `mcp.json` — the agent can invoke their tools
+- **Custom Agents** — define specialised agent personas in `agents.json` with custom prompts and tools
+- **18 models** — switch between Claude, GPT, and Gemini models via `/model` command or UI dropdown
+- **Reasoning display** — models with thinking tokens show chain-of-thought in the browser UI
+- **Local session browser** — fetch, view, and resume past Copilot CLI sessions
+- **Workspace sandbox** — file operations default to `pilot_folder/` for safety
+- **Auto-start** — optional Windows Task Scheduler setup for always-on operation
 
 ## Prerequisites
 
@@ -28,7 +47,7 @@ A self-hosted agent chat application that wraps the **GitHub Copilot SDK** behin
 |---|---|
 | **Python 3.11+** | For the Flask backend |
 | **GitHub Copilot access** | A valid GitHub token with Copilot entitlements |
-| **ngrok** | Free account at [ngrok.com](https://ngrok.com) — install via `brew install ngrok` or [download](https://ngrok.com/download) |
+| **Telegram account** | And a bot created via [@BotFather](https://t.me/BotFather) |
 
 ## Quick Start
 
@@ -38,12 +57,7 @@ A self-hosted agent chat application that wraps the **GitHub Copilot SDK** behin
 pip install -r requirements.txt
 ```
 
-This installs:
-- `flask` + `flask-cors` — API server
-- `github-copilot-sdk` — Copilot SDK for Python
-- `pydantic` — data validation
-
-### 2. Configure authentication
+### 2. Configure GitHub authentication
 
 The server picks up a GitHub token from environment variables (checked in order):
 
@@ -60,61 +74,67 @@ export GITHUB_TOKEN="ghp_..."
 
 If none are set, the SDK falls back to the logged-in GitHub CLI user (`gh auth status`).
 
-### 3. Start the Flask server
+### 3. Set up Telegram bot
+
+1. Open Telegram and message [@BotFather](https://t.me/BotFather)
+2. Send `/newbot`, follow the prompts, and copy the **bot token**
+3. Get your Telegram user ID from [@userinfobot](https://t.me/userinfobot)
+4. Create `telegram_config.py` in the project root:
+
+```python
+TELEGRAM_BOT_TOKEN = "123456789:ABCdef..."
+TELEGRAM_ALLOWED_USER_ID = 123456789
+```
+
+### 4. Start the server
 
 ```bash
 python app.py
 ```
 
-The server starts on **port 5000** by default (override with `PORT` env var):
-
+You'll see:
 ```
+[Telegram] ✓ Bot thread launched
+[Telegram] ✓ Bot started (polling) — allowed user: 123456789
+
   Agent chat server running → http://localhost:5000
 ```
 
-### 4. Expose with ngrok
+### 5. Chat on Telegram
 
-In a separate terminal, run ngrok with your custom domain:
+Open your bot on Telegram and send `/start` — you're ready to chat with Copilot!
 
-```bash
-ngrok http --domain=your-custom-subdomain.ngrok-free.dev 5000
-```
+## Telegram Bot Commands
 
-> You get a free static domain from the [ngrok dashboard](https://dashboard.ngrok.com/domains) — this gives you a stable URL that doesn't change between restarts.
-
-ngrok prints output like:
-
-```
-Forwarding  https://your-custom-subdomain.ngrok-free.dev → http://localhost:5000
-```
-
-### 5. Open the UI
-
-Open `index.html` in any browser (locally or on another device). In the sidebar footer, paste the ngrok URL into the **agent endpoint** field:
-
-```
-https://abcd-1234.ngrok-free.app/chat
-```
-
-The green dot next to "agent endpoint" lights up when the backend is reachable. Hit **+ New Session** and start chatting.
-
-> **Tip**: You can also host `index.html` on any static file server or open it directly as a `file://` — CORS is enabled on the Flask side.
+| Command | Description |
+|---|---|
+| `/start` | Welcome message |
+| `/help` | Show all commands |
+| `/models` | List available AI models |
+| `/model <id>` | Switch model (e.g., `/model claude-sonnet-4.6`) |
+| `/skills` | List available skills |
+| `/mcps` | List available MCP servers |
+| `/agents` | List available custom agents |
+| `/use #skill %mcp @agent` | Activate skills, MCPs, or agents |
+| `/config` | Show current session config |
+| `/sessions` | List recent local Copilot CLI sessions |
+| `/resume <id>` | Resume a past session |
+| `/new` | Start a fresh session |
+| Any text | Sent directly to the Copilot agent |
 
 ## Project Structure
 
 ```
-local-pilot/
-├── app.py                 # Flask server — REST + SSE endpoints
+copilot-remote/
+├── app.py                 # Flask server — REST + SSE endpoints + Telegram bot startup
 ├── agent.py               # Copilot SDK wrapper — session management, streaming
+├── telegram_bot.py        # Telegram bot — long-polling, commands, chat forwarding
+├── telegram_config.py     # Telegram credentials (⚠ do not commit)
 ├── local_sessions.py      # Fetch & browse past Copilot CLI sessions
-├── whatsapp.py            # WhatsApp integration via Twilio webhooks
-├── twilio_config.py       # Twilio credentials (⚠ do not commit)
-├── teams.py               # Teams integration via Azure Bot Framework
-├── teams_config.py        # Azure Bot credentials (⚠ do not commit)
-├── teams-app/             # Teams app package builder
-│   ├── manifest.json      # App manifest template (placeholder values)
-│   └── generate_teams_app.py  # Script to build the installable .zip
-├── index.html             # Self-contained chat UI (HTML + CSS + JS)
+├── whatsapp.py            # WhatsApp integration via Twilio webhooks (optional)
+├── teams.py               # Teams integration via Azure Bot Framework (optional)
+├── index.html             # Self-contained browser chat UI (optional)
+├── start.cmd              # Windows launcher script
 ├── requirements.txt       # Python dependencies
 ├── mcp.json               # MCP server configurations
 ├── agents.json            # Custom agent definitions (prompts, tools, MCPs)
@@ -213,32 +233,13 @@ Each key becomes a selectable agent in the **🤖 Agents** dropdown. Agents can 
 
 ## Models
 
-Configure the models available for selection in `models_config.json`:
+Configure available models in `models_config.json`. 18 models are included by default:
 
-```json
-{
-  "default_model": "gpt-4.1",
-  "models": [
-    {
-      "id": "gpt-4.1",
-      "name": "GPT-4.1",
-      "description": "Fast, cost-efficient flagship model for most coding tasks"
-    },
-    {
-      "id": "claude-sonnet-4",
-      "name": "Claude Sonnet 4",
-      "description": "Anthropic's balanced model with extended thinking"
-    },
-    {
-      "id": "gpt-5-mini",
-      "name": "GPT-5 Mini",
-      "description": "Compact next-gen model with strong reasoning"
-    }
-  ]
-}
-```
+- **Claude:** Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Opus 4.6, Opus 4.6 (1M), Opus 4.5, Sonnet 4
+- **GPT:** 5.4, 5.3-Codex, 5.2-Codex, 5.2, 5.1-Codex-Max, 5.1-Codex, 5.1, 5.1-Codex-Mini, 5-Mini, 4.1
+- **Gemini:** 3 Pro (Preview)
 
-Models appear in the **🧠 Model** dropdown in the UI. The selected model is part of the session config fingerprint — switching models mid-conversation triggers a session re-resume so the new model takes effect immediately while preserving conversation history.
+Switch models via `/model <id>` on Telegram or the 🧠 dropdown in the browser UI.
 
 Models that emit reasoning / thinking tokens (e.g., Claude Sonnet 4) will have their chain-of-thought rendered in a collapsible "Thinking…" block in the chat UI.
 
@@ -252,20 +253,46 @@ Models that emit reasoning / thinking tokens (e.g., Claude Sonnet 4) will have t
 | `GH_TOKEN` | — | Fallback GitHub token |
 | `GITHUB_TOKEN` | — | Second fallback GitHub token |
 
-## Integrations (Teams, WhatsApp)
+| Config File | Description |
+|---|---|
+| `telegram_config.py` | Telegram bot token + allowed user ID (⚠ do not commit) |
+| `models_config.json` | Available models and default model |
+| `agents.json` | Custom agent personas with prompts and tools |
+| `mcp.json` | MCP server configurations |
 
-Local-pilot can also be used as a **Microsoft Teams** personal bot or via **WhatsApp** (Twilio sandbox). Both integrations share the same agent, skills, sessions, and commands.
+## Other Integrations (Optional)
 
-For full setup instructions, see **[docs/integration_setup_guide.md](docs/integration_setup_guide.md)**.
+The Telegram bot is the primary interface, but the following are also supported:
 
-For a detailed technical design covering architecture, session management, data models, streaming, and threading, see **[docs/technical_design.md](docs/technical_design.md)**.
+- **Browser UI** — open `index.html` locally (or via ngrok for remote access)
+- **WhatsApp** — via Twilio webhooks (requires Twilio account + ngrok)
+- **Microsoft Teams** — via Azure Bot Framework
 
-## ngrok Tips
+For setup instructions, see **[docs/integration_setup_guide.md](docs/integration_setup_guide.md)** and **[docs/technical_design.md](docs/technical_design.md)**.
 
-- **Custom subdomain** (paid plans): `ngrok http 5000 --subdomain=my-pilot` gives you a stable URL
-- **Auth protection**: `ngrok http 5000 --basic-auth="user:password"` adds HTTP basic auth
-- **Inspect traffic**: visit `http://127.0.0.1:4040` while ngrok is running to see all requests/responses
-- The UI sends `ngrok-skip-browser-warning: 1` header automatically so you won't see the ngrok interstitial page
+## Auto-Start on Boot (Windows)
+
+To keep the bot running permanently, set up a Windows Task Scheduler task:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "cmd.exe" `
+    -Argument '/c "path\to\start.cmd"' `
+    -WorkingDirectory "path\to\copilot-remote"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+
+$settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable -RestartCount 999 `
+    -RestartInterval (New-TimeSpan -Seconds 60) `
+    -ExecutionTimeLimit (New-TimeSpan -Days 9999)
+
+Register-ScheduledTask -TaskName "CopilotRemote" `
+    -Action $action -Trigger $trigger -Settings $settings `
+    -User $env:USERNAME -RunLevel Highest -Force
+```
+
+Or simply double-click `start.cmd` to run manually.
 
 ## License
 

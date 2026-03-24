@@ -418,7 +418,10 @@ def start_telegram_bot():
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auth(_handle_message)))
 
         print(f"[Telegram] ✓ Bot started (polling) — allowed user: {TELEGRAM_ALLOWED_USER_ID}")
-        app.run_polling(drop_pending_updates=True)
+        app.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"],
+        )
 
     thread = threading.Thread(target=_run_bot, daemon=True)
     thread.start()

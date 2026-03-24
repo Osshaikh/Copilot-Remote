@@ -6,6 +6,7 @@ nul
 twilio_config.py
 teams_config.py
 telegram_config.py
+.session_map.json
 
 # Teams app — generated artifacts (user runs generate_teams_app.py)
 teams-app/local-pilot.zip

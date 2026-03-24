@@ -39,6 +39,7 @@ SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
 MCP_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp.json")
 AGENTS_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agents.json")
 MODELS_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models_config.json")
+SESSION_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".session_map.json")
 
 # System message that instructs the agent about workspace behavior
 SYSTEM_MESSAGE = f"""You are a helpful coding assistant.
@@ -318,6 +319,45 @@ async def _destroy_old_session(old_session) -> None:
         pass  # best-effort; resume_session will reconnect regardless
 
 
+def _save_session_mapping(conversation_key: str, session_id: str):
+    """Persist conversation_key → session_id mapping to disk for restart recovery."""
+    try:
+        mapping = {}
+        if os.path.exists(SESSION_MAP_FILE):
+            with open(SESSION_MAP_FILE) as f:
+                mapping = json.load(f)
+        mapping[conversation_key] = session_id
+        with open(SESSION_MAP_FILE, "w") as f:
+            json.dump(mapping, f, indent=2)
+    except Exception:
+        pass  # best-effort
+
+
+def _load_session_id(conversation_key: str) -> str | None:
+    """Load a previously saved session_id for a conversation key."""
+    try:
+        if os.path.exists(SESSION_MAP_FILE):
+            with open(SESSION_MAP_FILE) as f:
+                mapping = json.load(f)
+            return mapping.get(conversation_key)
+    except Exception:
+        pass
+    return None
+
+
+def _clear_session_mapping(conversation_key: str):
+    """Remove a conversation key from the persisted mapping."""
+    try:
+        if os.path.exists(SESSION_MAP_FILE):
+            with open(SESSION_MAP_FILE) as f:
+                mapping = json.load(f)
+            mapping.pop(conversation_key, None)
+            with open(SESSION_MAP_FILE, "w") as f:
+                json.dump(mapping, f, indent=2)
+    except Exception:
+        pass
+
+
 async def _get_or_create_session(
     client: CopilotClient, conversation_key: str,
     skill_slugs: list[str] | None = None,
@@ -350,7 +390,20 @@ async def _get_or_create_session(
             _session_config_cache[conversation_key] = new_fp
             return session
 
-    # First call — create a brand-new session
+    # Try resuming a persisted session from a previous process
+    saved_sid = _load_session_id(conversation_key)
+    if saved_sid:
+        try:
+            config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=False, model=model)
+            session = await client.resume_session(saved_sid, config)
+            _sessions[conversation_key] = session
+            _copilot_id_to_session[saved_sid] = session
+            _session_config_cache[conversation_key] = new_fp
+            return session
+        except Exception:
+            _clear_session_mapping(conversation_key)  # stale — remove and create fresh
+
+    # No existing session — create a brand-new one
     config = _build_session_config(skill_slugs, mcp_slugs, agent_slugs, is_new=True, model=model)
     session = await client.create_session(config)
     _sessions[conversation_key] = session
@@ -358,6 +411,7 @@ async def _get_or_create_session(
     # Track by Copilot session ID so resume_session can find it later
     if hasattr(session, 'session_id') and session.session_id:
         _copilot_id_to_session[session.session_id] = session
+        _save_session_mapping(conversation_key, session.session_id)
     return session
 
 

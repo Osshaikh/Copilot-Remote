@@ -1,5 +1,5 @@
 """
-telegram.py — Telegram integration via python-telegram-bot (long-polling).
+telegram_bot.py — Telegram integration via python-telegram-bot (long-polling).
 
 Runs a Telegram bot in a background thread alongside the Flask server.
 Uses the same agent pipeline as the web UI and WhatsApp.
@@ -23,6 +23,7 @@ Commands:
 
 import asyncio
 import threading
+import uuid
 from telegram import Update, BotCommand
 from telegram.ext import (
     Application,
@@ -58,6 +59,7 @@ def _get_tg_session(user_id: int) -> dict:
             "agents": [],
             "model": None,
             "resumed_session_id": None,
+            "ui_session_id": f"telegram-{user_id}",
         }
     return _tg_sessions[user_id]
 
@@ -269,6 +271,7 @@ async def _cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session["agents"] = []
     session["model"] = None
     session["resumed_session_id"] = None
+    session["ui_session_id"] = f"telegram-{update.effective_user.id}-{uuid.uuid4().hex[:8]}"
     await update.message.reply_text(
         "🆕 Session reset. You're starting fresh.\n"
         "Use /use to set skills/MCPs/agents, /model to change model, or just start chatting."
@@ -357,6 +360,7 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 history,
                 resumed_session_id=session.get("resumed_session_id"),
                 skill_slugs=session.get("skills", []),
+                ui_session_id=session.get("ui_session_id"),
                 mcp_slugs=session.get("mcps", []),
                 agent_slugs=session.get("agents", []),
                 model=session.get("model"),

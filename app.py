@@ -3,8 +3,15 @@ app.py — Local agent server for agent-chat.html
 Run: python app.py
 """
 import os
+import sys
 import json
 import threading
+
+# Fix encoding for background/service execution on Windows
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from agent import ask_agent, ask_agent_streaming, list_skill_directories, list_mcp_servers, list_custom_agents, list_available_models, get_default_model

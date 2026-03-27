@@ -373,6 +373,9 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(chunk)
 
     except Exception as e:
+        import traceback
+        print(f"[Telegram] ❌ Agent error: {e}")
+        traceback.print_exc()
         await update.message.reply_text(f"❌ Agent error: {e}")
 
 

@@ -602,8 +602,23 @@ async def _ask_agent_async(
         conversation_key = ui_session_id or _get_conversation_key(history)
         session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs, model)
     
-    # Send the current message - session automatically maintains context
-    response = await session.send_and_wait({"prompt": message}, 600000)  # 10 min timeout (ms)
+    # Send the current message - retry once with a fresh session if stale
+    try:
+        response = await session.send_and_wait({"prompt": message}, 600000)
+    except OSError:
+        # Session likely went stale (e.g., [Errno 22] Invalid argument) — recreate
+        print(f"[Agent] Session stale, recreating...")
+        if not resumed_session_id:
+            conversation_key = ui_session_id or _get_conversation_key(history)
+            _sessions.pop(conversation_key, None)
+            _session_config_cache.pop(conversation_key, None)
+            _clear_session_mapping(conversation_key)
+            session = await _get_or_create_session(client, conversation_key, skill_slugs, mcp_slugs, agent_slugs, model)
+        else:
+            _resumed_sdk_sessions.pop(resumed_session_id, None)
+            _session_config_cache.pop(f"resume:{resumed_session_id}", None)
+            session = await _get_or_resume_session(client, resumed_session_id, skill_slugs, mcp_slugs, agent_slugs, model)
+        response = await session.send_and_wait({"prompt": message}, 600000)
     
     return response.data.content if response and response.data else ""
 
